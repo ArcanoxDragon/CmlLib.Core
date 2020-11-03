@@ -7,6 +7,8 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace CmlLib.Core.Downloader
 {
@@ -32,35 +34,36 @@ namespace CmlLib.Core.Downloader
             MinecraftPath = downloadPath;
         }
 
-        /// <summary>
-        /// Download All files that require to launch
-        /// </summary>
-        /// <param name="resource"></param>
-        public void DownloadAll(bool resource = true)
+		/// <summary>
+		/// Download All files that require to launch
+		/// </summary>
+		/// <param name="resource"></param>
+		/// <param name="cancellationToken"></param>
+		public async Task DownloadAllAsync(bool resource = true, CancellationToken cancellationToken = default)
         {
             if (DownloadVersion == null)
                 throw new NullReferenceException("DownloadVersion was null");
 
-            DownloadLibraries();
+            await this.DownloadLibrariesAsync(cancellationToken);
 
             if (resource)
             {
                 DownloadIndex();
-                DownloadResource();
+                await this.DownloadResourceAsync(cancellationToken);
             }
 
-            DownloadMinecraft();
+            await this.DownloadMinecraftAsync(cancellationToken);
         }
 
-        public void DownloadLibraries()
+        public async Task DownloadLibrariesAsync(CancellationToken cancellationToken = default)
         {
             if (DownloadVersion == null)
                 throw new NullReferenceException("DownloadVersion was null");
 
-            DownloadLibraries(DownloadVersion.Libraries);
+            await this.DownloadLibrariesAsync(DownloadVersion.Libraries, cancellationToken);
         }
 
-        public void DownloadLibraries(MLibrary[] libraries)
+        public async Task DownloadLibrariesAsync(MLibrary[] libraries, CancellationToken cancellationToken = default)
         {
             fireDownloadFileChangedEvent(MFile.Library, "", 0, 0);
 
@@ -68,7 +71,7 @@ namespace CmlLib.Core.Downloader
                         where CheckDownloadRequireLibrary(lib)
                         select new DownloadFile(MFile.Library, lib.Name, Path.Combine(MinecraftPath.Library, lib.Path), lib.Url);
 
-            DownloadFiles(files.Distinct().ToArray());
+            await this.DownloadFilesAsync(files.Distinct().ToArray(), cancellationToken);
         }
 
         private bool CheckDownloadRequireLibrary(MLibrary lib)
@@ -100,18 +103,18 @@ namespace CmlLib.Core.Downloader
         /// <summary>
         /// Download assets and copy to legacy or resources
         /// </summary>
-        public void DownloadResource()
+        public async Task DownloadResourceAsync(CancellationToken cancellationToken = default)
         {
             var indexpath = MinecraftPath.GetIndexFilePath(DownloadVersion.AssetId);
             if (!File.Exists(indexpath)) return;
 
-            var json = File.ReadAllText(indexpath);
+            var json  = File.ReadAllText(indexpath);
             var index = JObject.Parse(json);
 
-            DownloadResource(index);
+            await this.DownloadResourceAsync(index, cancellationToken);
         }
 
-        public void DownloadResource(JObject index)
+        public async Task DownloadResourceAsync(JObject index, CancellationToken cancellationToken = default)
         {
             fireDownloadFileChangedEvent(MFile.Resource, DownloadVersion.AssetId, 0, 0);
 
@@ -155,7 +158,7 @@ namespace CmlLib.Core.Downloader
                 fireDownloadFileChangedEvent(MFile.Resource, "", total, progressed);
             }
 
-            DownloadFiles(downloadRequiredFiles.Distinct().ToArray());
+            await this.DownloadFilesAsync(downloadRequiredFiles.Distinct().ToArray(), cancellationToken);
 
             total = copyRequiredFiles.Count;
             progressed = 0;
@@ -184,7 +187,7 @@ namespace CmlLib.Core.Downloader
         /// <summary>
         /// Download client jar
         /// </summary>
-        public void DownloadMinecraft()
+        public async Task DownloadMinecraftAsync(CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(DownloadVersion.ClientDownloadUrl)) return;
 
@@ -194,7 +197,7 @@ namespace CmlLib.Core.Downloader
             if (!CheckFileValidation(path, DownloadVersion.ClientHash))
             {
                 var file = new DownloadFile(MFile.Minecraft, id, path, DownloadVersion.ClientDownloadUrl);
-                DownloadFiles(new DownloadFile[] { file });
+                await this.DownloadFilesAsync(new DownloadFile[] { file }, cancellationToken);
             }
 
             fireDownloadFileChangedEvent(MFile.Minecraft, id, 1, 1);
@@ -235,10 +238,13 @@ namespace CmlLib.Core.Downloader
             ChangeProgress?.Invoke(this, e);
         }
 
-        public virtual void DownloadFiles(DownloadFile[] files)
-        {
-            var webdownload = new WebDownload();
-            webdownload.DownloadProgressChangedEvent += fireDownloadProgressChangedEvent;
+        public virtual async Task DownloadFilesAsync( DownloadFile[] files, CancellationToken cancellationToken = default )
+		{
+			using var webClient = new WebClient();
+
+			cancellationToken.Register( webClient.CancelAsync );
+
+			webClient.DownloadProgressChanged += fireDownloadProgressChangedEvent;
 
             var length = files.Length;
             if (length == 0)
@@ -252,8 +258,9 @@ namespace CmlLib.Core.Downloader
                 {
                     var downloadFile = files[i];
                     Directory.CreateDirectory(Path.GetDirectoryName(downloadFile.Path));
-                    webdownload.DownloadFile(downloadFile.Url, downloadFile.Path);
+                    await webClient.DownloadFileTaskAsync(downloadFile.Url, downloadFile.Path);
                     fireDownloadFileChangedEvent(downloadFile.Type, downloadFile.Name, length, i + 1);
+                    cancellationToken.ThrowIfCancellationRequested();
                 }
                 catch (WebException ex)
                 {

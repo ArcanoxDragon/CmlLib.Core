@@ -1,8 +1,6 @@
 ﻿using CmlLib.Core.Version;
-using CmlLib.Utils;
 using System;
-using System.Collections.Generic;
-using System.IO;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,47 +24,33 @@ namespace CmlLib.Core.Downloader
 
         public int MaxThread { get; private set; }
 
-        public override void DownloadFiles(DownloadFile[] files)
-        {
-            DownloadParallelAsync(files, MaxThread)
-                .Wait();
-        }
+        public override async Task DownloadFilesAsync( DownloadFile[] files, CancellationToken cancellationToken = default )
+		{
+			await DownloadParallelAsync( files, MaxThread, cancellationToken );
+		}
 
-        public async Task DownloadParallelAsync(DownloadFile[] files, int parallelDegree)
+        public async Task DownloadParallelAsync(DownloadFile[] files, int parallelDegree, CancellationToken cancellationToken = default)
         {
-            MFile filetype = MFile.Library;
-            if (files.Length > 0)
-                filetype = files[0].Type;
+			var filetype = MFile.Library;
+			
+			if (files.Length > 0)
+				filetype = files[0].Type;
 
-            var downloadTasks = new List<Task>(files.Length);
             var semaphore = new SemaphoreSlim(parallelDegree, parallelDegree);
-
             var progressed = 0;
 
-            foreach (var file in files)
-            {
-                await semaphore.WaitAsync().ConfigureAwait(false);
-                var t = Task.Run(() => doDownload(file.Path, file.Url));
-                downloadTasks.Add(t);
-            }
-
-            Task waitEvent = null;
             async Task doDownload(string path, string url)
-            {
+			{
+				await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+				using var webClient = new WebClient();
+
+				cancellationToken.Register( webClient.CancelAsync );
+
                 try
-                {
-                    Directory.CreateDirectory(Path.GetDirectoryName(path));
-
-                    var req = WebRequest.CreateHttp(url);
-                    req.Method = "GET";
-                    var res = await req.GetResponseAsync().ConfigureAwait(false);
-
-                    using (var httpStream = res.GetResponseStream())
-                    using (var fs = File.OpenWrite(path))
-                    {
-                        await httpStream.CopyToAsync(fs).ConfigureAwait(false);
-                    }
-                }
+				{
+					await webClient.DownloadFileTaskAsync( url, path );
+				}
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine(ex);
@@ -74,20 +58,14 @@ namespace CmlLib.Core.Downloader
                 finally
                 {
                     Interlocked.Increment(ref progressed);
-                    waitEvent = Task.Run(() =>
-                    {
-                        fireDownloadFileChangedEvent(filetype, "", files.Length, progressed);
-                    });
+
+					fireDownloadFileChangedEvent(filetype, "", files.Length, progressed);
 
                     semaphore.Release();
                 }
             }
 
-            var download = Task.WhenAll(downloadTasks);
-            await download;
-
-            if (waitEvent != null)
-                await waitEvent;
+            await Task.WhenAll(files.Select(file => doDownload( file.Path, file.Url )  ));
         }
     }
 }

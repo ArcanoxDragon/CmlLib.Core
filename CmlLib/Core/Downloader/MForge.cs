@@ -9,6 +9,8 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace CmlLib.Core.Downloader
 {
@@ -37,7 +39,7 @@ namespace CmlLib.Core.Downloader
         public event DownloadFileChangedHandler FileChanged;
         public event EventHandler<string> InstallerOutput;
 
-        public string InstallForge(string mcversion, string forgeversion)
+        public async Task<string> InstallForgeAsync(string mcversion, string forgeversion, CancellationToken cancellationToken = default)
         {
             var minecraftJar = Minecraft.GetVersionJarPath(mcversion);
             if (!File.Exists(minecraftJar))
@@ -54,13 +56,13 @@ namespace CmlLib.Core.Downloader
                 installerObj["filePath"]?.ToString(), installerObj["path"]?.ToString()); // old installer
 
             // download libraries and processors
-            checkLibraries(installerObj["libraries"] as JArray);
+            await checkLibrariesAsync(installerObj["libraries"] as JArray, cancellationToken);
 
             // mapping client data
             var mapData = mapping(installerObj["data"] as JObject, "client", minecraftJar, installerPath);
 
             // process
-            process(installerObj["processors"] as JArray, mapData);
+            await Task.Run(() => process(installerObj["processors"] as JArray, mapData), cancellationToken);
 
             // version name like 1.16.2-forge-33.0.20
             var versionName = installerObj["target"]?.ToString()
@@ -183,7 +185,7 @@ namespace CmlLib.Core.Downloader
         }
 
         // legacy
-        private void downloadUniversal(string mcversion, string forgeversion)
+        private async Task downloadUniversalAsync(string mcversion, string forgeversion, CancellationToken cancellationToken = default)
         {
             fireEvent(MFile.Library, "universal", 1, 0);
 
@@ -200,9 +202,11 @@ namespace CmlLib.Core.Downloader
                 $"forge-{mcversion}-{forgeversion}.jar"
             );
 
-            Directory.CreateDirectory(Path.GetDirectoryName(universalPath));
-            var downloader = new WebDownload();
-            downloader.DownloadFile(universalUrl, universalPath);
+            using var webClient = new WebClient();
+
+			cancellationToken.Register( webClient.CancelAsync );
+
+            await webClient.DownloadFileTaskAsync(universalUrl, universalPath);
         }
 
         private Dictionary<string, string> mapping(JObject data, string kind,
@@ -235,7 +239,7 @@ namespace CmlLib.Core.Downloader
             return dataMapping;
         }
 
-        private void checkLibraries(JArray jarr)
+        private async Task checkLibrariesAsync(JArray jarr, CancellationToken cancellationToken = default)
         {
             if (jarr == null || jarr.Count == 0)
                 return;
@@ -249,7 +253,7 @@ namespace CmlLib.Core.Downloader
 
             var downloader = new MDownloader(Minecraft);
             downloader.ChangeFile += (e) => FileChanged?.Invoke(e);
-            downloader.DownloadLibraries(libs.ToArray());
+            await downloader.DownloadLibrariesAsync(libs.ToArray(), cancellationToken);
         }
 
         private void process(JArray processors, Dictionary<string, string> mapData)

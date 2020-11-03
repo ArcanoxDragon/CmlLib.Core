@@ -4,6 +4,8 @@ using System;
 using System.ComponentModel;
 using System.IO;
 using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace CmlLib.Core.Downloader
 {
@@ -22,16 +24,16 @@ namespace CmlLib.Core.Downloader
             RuntimeDirectory = runtimePath;
         }
 
-        public string CheckJava()
+        public Task<string> CheckJavaAsync(CancellationToken cancellationToken = default)
         {
             var binaryName = "java";
             if (MRule.OSName == MRule.Windows)
                 binaryName = "javaw.exe";
 
-            return CheckJava(binaryName);
+            return CheckJavaAsync(binaryName, cancellationToken);
         }
 
-        public string CheckJava(string binaryName)
+        public async Task<string> CheckJavaAsync(string binaryName, CancellationToken cancellationToken = default)
         {
             var javapath = Path.Combine(RuntimeDirectory, "bin", binaryName);
 
@@ -39,40 +41,47 @@ namespace CmlLib.Core.Downloader
             {
                 string json = "";
 
-                var javaUrl = "";
-                using (var wc = new WebClient())
-                {
-                    json = wc.DownloadString(MojangServer.LauncherMeta);
+                var       javaUrl = "";
+				using var wc      = new WebClient();
 
-                    var job = JObject.Parse(json)[MRule.OSName];
-                    javaUrl = job[MRule.Arch]?["jre"]?["url"]?.ToString();
+				cancellationToken.Register(wc.CancelAsync);
 
-                    if (string.IsNullOrEmpty(javaUrl))
-                        throw new PlatformNotSupportedException("Downloading JRE on current OS is not supported. Set JavaPath manually.");
+                json = await wc.DownloadStringTaskAsync(MojangServer.LauncherMeta);
+                cancellationToken.ThrowIfCancellationRequested();
 
-                    Directory.CreateDirectory(RuntimeDirectory);
-                }
+                var job = JObject.Parse(json)[MRule.OSName];
+                javaUrl = job[MRule.Arch]?["jre"]?["url"]?.ToString();
+
+                if (string.IsNullOrEmpty(javaUrl))
+                    throw new PlatformNotSupportedException("Downloading JRE on current OS is not supported. Set JavaPath manually.");
+
+                Directory.CreateDirectory(RuntimeDirectory);
 
                 var lzmapath = Path.Combine(Path.GetTempPath(), "jre.lzma");
                 var zippath = Path.Combine(Path.GetTempPath(), "jre.zip");
 
-                var webdownloader = new WebDownload();
-                webdownloader.DownloadProgressChangedEvent += Downloader_DownloadProgressChangedEvent;
-                webdownloader.DownloadFile(javaUrl, lzmapath);
+                await wc.DownloadFileTaskAsync(new Uri(javaUrl), lzmapath);
+				cancellationToken.ThrowIfCancellationRequested();
 
                 DownloadCompleted?.Invoke(this, new EventArgs());
 
-                SevenZipWrapper.DecompressFileLZMA(lzmapath, zippath);
+				await SevenZipWrapper.DecompressFileLzmaAsync( lzmapath, zippath, cancellationToken );
 
-                var z = new SharpZip(zippath);
-                z.ProgressEvent += Z_ProgressEvent;
-                z.Unzip(RuntimeDirectory);
+                await Task.Run(() => {
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                if (!File.Exists(javapath))
-                    throw new Exception("Failed Download");
+	                var z = new SharpZip(zippath);
+	                z.ProgressEvent += Z_ProgressEvent;
+	                z.Unzip(RuntimeDirectory);
 
-                if (MRule.OSName != MRule.Windows)
-                    IOUtil.Chmod(javapath, IOUtil.Chmod755);
+                    cancellationToken.ThrowIfCancellationRequested();
+
+	                if (!File.Exists(javapath))
+	                    throw new Exception("Failed Download");
+
+	                if (MRule.OSName != MRule.Windows)
+	                    IOUtil.Chmod(javapath, IOUtil.Chmod755);
+				}, cancellationToken );
             }
 
             return javapath;

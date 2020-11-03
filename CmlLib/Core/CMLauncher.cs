@@ -6,6 +6,8 @@ using System.Text;
 using System.ComponentModel;
 using System.Linq;
 using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using CmlLib.Core.Downloader;
 using CmlLib.Core.Version;
 
@@ -45,29 +47,29 @@ namespace CmlLib.Core
             ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(progress, null));
         }
 
-        public MVersionCollection UpdateVersions()
+        public async Task<MVersionCollection> UpdateVersionsAsync(CancellationToken cancellationToken = default)
         {
-            Versions = new MVersionLoader(MinecraftPath).GetVersionMetadatas();
+            Versions = await new MVersionLoader(this.MinecraftPath).GetVersionMetadatasAsync(cancellationToken);
             return Versions;
         }
 
-        public MVersionCollection GetAllVersions()
+        public async Task<MVersionCollection> GetAllVersionsAsync(CancellationToken cancellationToken = default)
         {
             if (Versions == null)
-                Versions = UpdateVersions();
+                Versions = await this.UpdateVersionsAsync(cancellationToken);
 
             return Versions;
         }
 
-        public MVersion GetVersion(string versionname)
+        public async Task<MVersion> GetVersionAsync(string versionname, CancellationToken cancellationToken = default)
         {
             if (Versions == null)
-                UpdateVersions();
+                await UpdateVersionsAsync(cancellationToken);
 
             return Versions.GetVersion(versionname);
         }
 
-        public string CheckJRE()
+        public Task<string> CheckJREAsync(CancellationToken cancellationToken = default)
         {
             fire(MFile.Runtime, "java", 1, 0);
 
@@ -77,13 +79,14 @@ namespace CmlLib.Core
             {
                 fire(MFile.Runtime, "java", 1, 1);
             };
-            return mjava.CheckJava();
+
+            return mjava.CheckJavaAsync(cancellationToken: cancellationToken);
         }
 
-        public string CheckForge(string mcversion, string forgeversion, string java)
+        public async Task<string> CheckForgeAsync(string mcversion, string forgeversion, string java, CancellationToken cancellationToken = default)
         {
             if (Versions == null)
-                UpdateVersions();
+                await UpdateVersionsAsync(cancellationToken);
 
             var forgeNameOld = MForge.GetOldForgeName(mcversion, forgeversion);
             var forgeName = MForge.GetForgeName(mcversion, forgeversion);
@@ -111,61 +114,62 @@ namespace CmlLib.Core
                 var mforge = new MForge(MinecraftPath, java);
                 mforge.FileChanged += (e) => fire(e);
                 mforge.InstallerOutput += (s, e) => LogOutput?.Invoke(this, e);
-                name = mforge.InstallForge(mcversion, forgeversion);
+                name = await mforge.InstallForgeAsync(mcversion, forgeversion, cancellationToken);
 
-                UpdateVersions();
+                await this.UpdateVersionsAsync(cancellationToken);
             }
 
             return name;
         }
 
-        public void CheckGameFiles(MVersion version, bool downloadAsset = true, bool checkFileHash = true)
+        public async Task CheckGameFilesAsync(MVersion version, bool downloadAsset = true, bool checkFileHash = true, CancellationToken cancellationToken = default)
         {
             var downloader = new MDownloader(MinecraftPath, version);
-            downloadGameFiles(downloader, downloadAsset, checkFileHash);
+            await downloadGameFilesAsync(downloader, downloadAsset, checkFileHash, cancellationToken);
         }
 
-        public void CheckGameFilesParallel(MVersion version, bool downloadAsset = true, bool checkFileHash = true)
+        public async Task CheckGameFilesParallelAsync(MVersion version, bool downloadAsset = true, bool checkFileHash = true, CancellationToken cancellationToken = default)
         {
             var downloader = new MParallelDownloader(MinecraftPath, version);
-            downloadGameFiles(downloader, downloadAsset, checkFileHash);
+            await downloadGameFilesAsync(downloader, downloadAsset, checkFileHash, cancellationToken);
         }
 
-        private void downloadGameFiles(MDownloader downloader, bool downloadAsset, bool checkFileHash)
+        private async Task downloadGameFilesAsync(MDownloader downloader, bool downloadAsset, bool checkFileHash, CancellationToken cancellationToken = default)
         {
             downloader.CheckHash = checkFileHash;
             downloader.ChangeFile += (e) => fire(e);
             downloader.ChangeProgress += (sender, e) => fire(e.ProgressPercentage);
-            downloader.DownloadAll(downloadAsset);
+            
+			await downloader.DownloadAllAsync(downloadAsset, cancellationToken);
         }
 
-        public Process CreateProcess(string mcversion, string forgeversion, MLaunchOption option)
+        public async Task<Process> CreateProcessAsync(string mcversion, string forgeversion, MLaunchOption option, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(option.JavaPath))
-                option.JavaPath = CheckJRE();
+                option.JavaPath = await this.CheckJREAsync(cancellationToken);
 
-            CheckGameFiles(GetVersion(mcversion), false);
+            await this.CheckGameFilesAsync(await this.GetVersionAsync(mcversion, cancellationToken), false, cancellationToken: cancellationToken);
 
-            var versionName = CheckForge(mcversion, forgeversion, option.JavaPath);
-            UpdateVersions();
+            var versionName = await CheckForgeAsync(mcversion, forgeversion, option.JavaPath, cancellationToken);
+            await this.UpdateVersionsAsync(cancellationToken);
 
-            return CreateProcess(versionName, option);
+            return await this.CreateProcessAsync(versionName, option, cancellationToken);
         }
 
-        public Process CreateProcess(string versionname, MLaunchOption option)
+        public async Task<Process> CreateProcessAsync(string versionname, MLaunchOption option, CancellationToken cancellationToken = default)
         {
-            option.StartVersion = GetVersion(versionname);
-            CheckGameFiles(option.StartVersion);
-            return CreateProcess(option);
+            option.StartVersion = await this.GetVersionAsync(versionname, cancellationToken);
+            await CheckGameFilesAsync(option.StartVersion, cancellationToken: cancellationToken);
+            return await this.CreateProcessAsync(option, cancellationToken);
         }
 
-        public Process CreateProcess(MLaunchOption option)
+        public async Task<Process> CreateProcessAsync(MLaunchOption option, CancellationToken cancellationToken = default)
         {
             if (option.Path == null)
                 option.Path = MinecraftPath;
 
             if (string.IsNullOrEmpty(option.JavaPath))
-                option.JavaPath = CheckJRE();
+                option.JavaPath = await this.CheckJREAsync(cancellationToken);
 
             var launch = new MLaunch(option);
             return launch.GetProcess();

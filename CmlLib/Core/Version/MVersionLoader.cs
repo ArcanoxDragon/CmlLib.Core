@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace CmlLib.Core.Version
 {
@@ -17,10 +19,10 @@ namespace CmlLib.Core.Version
         /// <summary>
         /// Get All MVersionInfo from mojang server and local
         /// </summary>
-        public MVersionCollection GetVersionMetadatas()
+        public async Task<MVersionCollection> GetVersionMetadatasAsync(CancellationToken cancellationToken = default)
         {
             var list = getFromLocal();
-            var web = GetVersionMetadatasFromWeb();
+            var web = await GetVersionMetadatasFromWebAsync(cancellationToken);
             foreach (var item in web)
             {
                 if (!list.Contains(item))
@@ -65,7 +67,7 @@ namespace CmlLib.Core.Version
         /// <summary>
         /// Get All MVersionInfo from mojang server
         /// </summary>
-        public static MVersionCollection GetVersionMetadatasFromWeb()
+        public static async Task<MVersionCollection> GetVersionMetadatasFromWebAsync(CancellationToken cancellationToken = default)
         {
             string latestReleaseId = null;
             string latestSnapshotId = null;
@@ -75,8 +77,10 @@ namespace CmlLib.Core.Version
 
             JArray jarr;
             using (WebClient wc = new WebClient())
-            {
-                var jobj = JObject.Parse(wc.DownloadString(MojangServer.Version));
+			{
+				cancellationToken.Register( wc.CancelAsync );
+
+                var jobj = JObject.Parse(await wc.DownloadStringTaskAsync(MojangServer.Version));
                 jarr = JArray.Parse(jobj["versions"].ToString());
 
                 var latest = jobj["latest"];

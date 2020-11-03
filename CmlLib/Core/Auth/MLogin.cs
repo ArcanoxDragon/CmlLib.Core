@@ -3,7 +3,10 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace CmlLib.Core.Auth
 {
@@ -60,7 +63,7 @@ namespace CmlLib.Core.Auth
                         NullValueHandling = NullValueHandling.Ignore
                     });
 
-                    if (SaveSession && string.IsNullOrEmpty(session.ClientToken))
+					if ( SaveSession && session != null && string.IsNullOrEmpty( session.ClientToken ) )
                         session.ClientToken = CreateNewClientToken();
 
                     return session;
@@ -76,19 +79,12 @@ namespace CmlLib.Core.Auth
             }
         }
 
-        private HttpWebResponse mojangRequest(string endpoint, string postdata)
-        {
-            var http = WebRequest.CreateHttp(MojangServer.Auth + endpoint);
-            http.ContentType = "application/json";
-            http.Method = "POST";
-            using (var req = new StreamWriter(http.GetRequestStream()))
-            {
-                req.Write(postdata);
-                req.Flush();
-            }
-
-            var res = http.GetResponseNoException();
-            return res;
+        private async Task<HttpResponseMessage> mojangRequestAsync(string endpoint, string postdata, CancellationToken cancellationToken = default)
+		{
+			using var http = new HttpClient();
+            using var content = new StringContent( postdata, Encoding.UTF8, "application/json" );
+			
+			return await http.PostAsync( MojangServer.Auth + endpoint, content, cancellationToken );
         }
 
         private MLoginResponse parseSession(string json, string clientToken)
@@ -147,13 +143,13 @@ namespace CmlLib.Core.Auth
             }
         }
 
-        public MLoginResponse Authenticate(string id, string pw)
+        public Task<MLoginResponse> AuthenticateAsync(string id, string pw, CancellationToken cancellationToken = default)
         {
             var clientToken = ReadSessionCache().ClientToken;
-            return Authenticate(id, pw, clientToken);
+            return AuthenticateAsync(id, pw, clientToken, cancellationToken);
         }
 
-        public MLoginResponse Authenticate(string id, string pw, string clientToken)
+        public async Task<MLoginResponse> AuthenticateAsync(string id, string pw, string clientToken, CancellationToken cancellationToken = default)
         {
             var req = new JObject
             {
@@ -168,31 +164,30 @@ namespace CmlLib.Core.Auth
                 }
             };
 
-            var resHeader = mojangRequest("authenticate", req.ToString());
+            var       response    = await mojangRequestAsync("authenticate", req.ToString(), cancellationToken);
+			using var resStream   = await response.Content.ReadAsStreamAsync();
+			using var res         = new StreamReader(resStream);
+			var       rawResponse = await res.ReadToEndAsync();
 
-            using (var res = new StreamReader(resHeader.GetResponseStream()))
-            {
-                var rawResponse = res.ReadToEnd();
-                if (resHeader.StatusCode == HttpStatusCode.OK) // ResultCode == 200
-                    return parseSession(rawResponse, clientToken);
-                else // fail to login
-                    return errorHandle(rawResponse);
-            }
-        }
+			if (response.StatusCode == HttpStatusCode.OK) // ResultCode == 200
+				return this.parseSession(rawResponse, clientToken);
+			else // fail to login
+				return this.errorHandle(rawResponse);
+		}
 
-        public MLoginResponse TryAutoLogin()
+        public Task<MLoginResponse> TryAutoLoginAsync(CancellationToken cancellationToken = default)
         {
             var session = ReadSessionCache();
-            return TryAutoLogin(session);
+            return TryAutoLoginAsync(session, cancellationToken);
         }
 
-        public MLoginResponse TryAutoLogin(MSession session)
+        public async Task<MLoginResponse> TryAutoLoginAsync(MSession session, CancellationToken cancellationToken = default)
         {
             try
             {
-                var result = Validate(session);
+                var result = await ValidateAsync(session, cancellationToken );
                 if (result.Result != MLoginResult.Success)
-                    result = Refresh(session);
+                    result = await RefreshAsync(session, cancellationToken);
                 return result;
             }
             catch (Exception ex)
@@ -201,13 +196,13 @@ namespace CmlLib.Core.Auth
             }
         }
 
-        public MLoginResponse Refresh()
+        public Task<MLoginResponse> RefreshAsync(CancellationToken cancellationToken = default )
         {
             var session = ReadSessionCache();
-            return Refresh(session);
+            return RefreshAsync(session, cancellationToken);
         }
 
-        public MLoginResponse Refresh(MSession session)
+        public async Task<MLoginResponse> RefreshAsync(MSession session, CancellationToken cancellationToken = default)
         {
             var req = new JObject
                 {
@@ -221,25 +216,24 @@ namespace CmlLib.Core.Auth
                     }
                 };
 
-            var resHeader = mojangRequest("refresh", req.ToString());
-            using (var res = new StreamReader(resHeader.GetResponseStream()))
-            {
-                var rawResponse = res.ReadToEnd();
+			using var response    = await mojangRequestAsync( "refresh", req.ToString(), cancellationToken );
+			using var resStream   = await response.Content.ReadAsStreamAsync();
+			using var res         = new StreamReader( resStream );
+			var       rawResponse = await res.ReadToEndAsync();
 
-                if ((int)resHeader.StatusCode / 100 == 2)
-                    return parseSession(rawResponse, session.ClientToken);
-                else
-                    return errorHandle(rawResponse);
-            }
-        }
+			if ((int)response.StatusCode / 100 == 2)
+				return this.parseSession(rawResponse, session.ClientToken);
+			else
+				return this.errorHandle(rawResponse);
+		}
 
-        public MLoginResponse Validate()
+        public Task<MLoginResponse> ValidateAsync(CancellationToken cancellationToken = default)
         {
             var session = ReadSessionCache();
-            return Validate(session);
+            return ValidateAsync(session, cancellationToken);
         }
 
-        public MLoginResponse Validate(MSession session)
+        public async Task<MLoginResponse> ValidateAsync(MSession session, CancellationToken cancellationToken = default)
         {
             JObject req = new JObject
                 {
@@ -247,15 +241,15 @@ namespace CmlLib.Core.Auth
                     { "clientToken", session.ClientToken }
                 };
 
-            var resHeader = mojangRequest("validate", req.ToString());
-            using (var res = new StreamReader(resHeader.GetResponseStream()))
-            {
-                if (resHeader.StatusCode == HttpStatusCode.NoContent) // StatusCode == 204
-                    return new MLoginResponse(MLoginResult.Success, session, null, null);
-                else
-                    return new MLoginResponse(MLoginResult.NeedLogin, null, null, null);
-            }
-        }
+            using var response  = await mojangRequestAsync("validate", req.ToString(), cancellationToken);
+			using var resStream = await response.Content.ReadAsStreamAsync();
+			using var res       = new StreamReader(resStream);
+
+			if (response.StatusCode == HttpStatusCode.NoContent) // StatusCode == 204
+				return new MLoginResponse(MLoginResult.Success, session, null, null);
+			else
+				return new MLoginResponse(MLoginResult.NeedLogin, null, null, null);
+		}
 
         public void DeleteTokenFile()
         {
@@ -263,13 +257,13 @@ namespace CmlLib.Core.Auth
                 File.Delete(SessionCacheFilePath);
         }
 
-        public bool Invalidate()
+        public Task<bool> InvalidateAsync(CancellationToken cancellationToken = default)
         {
             var session = ReadSessionCache();
-            return Invalidate(session);
+            return InvalidateAsync(session, cancellationToken);
         }
 
-        public bool Invalidate(MSession session)
+        public async Task<bool> InvalidateAsync(MSession session, CancellationToken cancellationToken = default)
         {
             var job = new JObject
             {
@@ -277,11 +271,11 @@ namespace CmlLib.Core.Auth
                 { "clientToken", session.ClientToken }
             };
 
-            var res = mojangRequest("invalidate", job.ToString());
-            return res.StatusCode == HttpStatusCode.NoContent; // 204
+            using var response = await mojangRequestAsync("invalidate", job.ToString(), cancellationToken);
+            return response.StatusCode == HttpStatusCode.NoContent; // 204
         }
 
-        public bool Signout(string id, string pw)
+        public async Task<bool> SignoutAsync(string id, string pw, CancellationToken cancellationToken = default)
         {
             var job = new JObject
             {
@@ -289,8 +283,8 @@ namespace CmlLib.Core.Auth
                 { "password", pw }
             };
 
-            var res = mojangRequest("signout", job.ToString());
-            return res.StatusCode == HttpStatusCode.NoContent; // 204
+            using var response = await mojangRequestAsync("signout", job.ToString(), cancellationToken);
+            return response.StatusCode == HttpStatusCode.NoContent; // 204
         }
     }
 
