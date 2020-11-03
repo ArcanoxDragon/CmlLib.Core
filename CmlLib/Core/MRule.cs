@@ -25,14 +25,7 @@ namespace CmlLib.Core
 
         private static string getOSName()
         {
-#if NETCOREAPP
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return OSX;
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                return Windows;
-            else
-                return Linux;
-#elif NETFRAMEWORK
+#if NET462
             var osType = Environment.OSVersion.Platform;
 
             if (osType == PlatformID.MacOSX)
@@ -41,6 +34,13 @@ namespace CmlLib.Core
                 return Linux;
             else
                 return Windows;
+#else
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+				return OSX;
+			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+				return Windows;
+			else
+				return Linux;
 #endif
         }
 
