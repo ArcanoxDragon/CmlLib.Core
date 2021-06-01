@@ -24,9 +24,9 @@ namespace CmlLibWinFormSample
             gMojangLogin.Enabled = false;
             gOfflineLogin.Enabled = false;
 
-            var th = new Thread(() =>
+            var th = new Thread(async () =>
             {
-                var result = login.TryAutoLogin();
+                var result = await login.TryAutoLoginAsync();
 
                 if (result.Result != MLoginResult.Success)
                 {
@@ -61,35 +61,35 @@ namespace CmlLibWinFormSample
             gMojangLogin.Enabled = false;
             gOfflineLogin.Enabled = false;
 
-            var th = new Thread(() =>
-            {
-                var result = login.TryAutoLoginFromMojangLauncher();
+            var th = new Thread(async () =>
+			{
+				var result = await login.TryAutoLoginFromMojangLauncherAsync();
 
-                if (result.Result != MLoginResult.Success)
-                {
-                    MessageBox.Show($"Failed to AutoLogin : {result.Result}\n{result.ErrorMessage}");
-                    Invoke(new Action(() =>
-                    {
-                        gMojangLogin.Enabled = true;
-                        gOfflineLogin.Enabled = true;
-                    }));
-                    return;
-                }
+				if (result.Result != MLoginResult.Success)
+				{
+					MessageBox.Show($"Failed to AutoLogin : {result.Result}\n{result.ErrorMessage}");
+					Invoke(new Action(() =>
+					{
+						gMojangLogin.Enabled = true;
+						gOfflineLogin.Enabled = true;
+					}));
+					return;
+				}
 
-                MessageBox.Show("Auto Login Success!");
-                Invoke(new Action(() =>
-                {
-                    gMojangLogin.Enabled = true;
-                    gOfflineLogin.Enabled = true;
+				MessageBox.Show("Auto Login Success!");
+				Invoke(new Action(() =>
+				{
+					gMojangLogin.Enabled = true;
+					gOfflineLogin.Enabled = true;
 
-                    btnAutoLogin.Enabled = false;
-                    btnAutoLoginMojangLauncher.Enabled = false;
-                    btnLogin.Enabled = false;
-                    btnLogin.Text = "Auto Login\nSuccess";
+					btnAutoLogin.Enabled = false;
+					btnAutoLoginMojangLauncher.Enabled = false;
+					btnLogin.Enabled = false;
+					btnLogin.Text = "Auto Login\nSuccess";
 
-                    UpdateSession(result.Session);
-                }));
-            });
+					UpdateSession(result.Session);
+				}));
+			});
             th.Start();
         }
 
@@ -104,9 +104,9 @@ namespace CmlLibWinFormSample
             gMojangLogin.Enabled = false;
             gOfflineLogin.Enabled = false;
 
-            var th = new Thread(new ThreadStart(delegate
+            var th = new Thread(async ()=>
             {
-                var result = login.Authenticate(txtEmail.Text, txtPassword.Text);
+                var result = await login.AuthenticateAsync(txtEmail.Text, txtPassword.Text);
                 if (result.Result == MLoginResult.Success)
                 {
                     MessageBox.Show("Login Success"); // Success Login
@@ -124,13 +124,13 @@ namespace CmlLibWinFormSample
                         gOfflineLogin.Enabled = true;
                     }));
                 }
-            }));
+            });
             th.Start();
         }
 
-        private void btnSignout_Click(object sender, EventArgs e)
+        private async void btnSignout_Click(object sender, EventArgs e)
         {
-            var result = login.Signout(txtEmail.Text, txtPassword.Text);
+            var result = await login.SignoutAsync(txtEmail.Text, txtPassword.Text);
             if (result)
             {
                 MessageBox.Show("Success");
@@ -140,9 +140,9 @@ namespace CmlLibWinFormSample
                 MessageBox.Show("Fail");
         }
 
-        private void btnInvalidate_Click(object sender, EventArgs e)
+        private async void btnInvalidate_Click(object sender, EventArgs e)
         {
-            var result = login.Invalidate();
+            var result = await login.InvalidateAsync();
             if (result)
             {
                 MessageBox.Show("Success");

@@ -8,7 +8,7 @@ namespace CmlLibCoreSample
 {
     class Program
     {
-        static void Main()
+        static async Task Main()
         {
             Console.WriteLine(CmlLib._Test.tstr);
             var p = new Program();
@@ -18,7 +18,7 @@ namespace CmlLibCoreSample
 
             // There are two login methods, one is using mojang email and password, and the other is using only username
             // Choose one which you want.
-            //session = p.PremiumLogin(); // Login by mojang email and password
+            //session = await p.PremiumLogin(); // Login by mojang email and password
             session = p.OfflineLogin(); // Login by username
 
             // log login session information
@@ -26,10 +26,10 @@ namespace CmlLibCoreSample
 
             // Launch
             //p.Start(session);
-            p.StartAsync(session).GetAwaiter().GetResult();
+            await p.StartAsync(session);
         }
 
-        MSession PremiumLogin()
+        async Task<MSession> PremiumLogin()
         {
             var login = new MLogin();
 
@@ -37,7 +37,7 @@ namespace CmlLibCoreSample
             // If the cached session is invalid, it refreshes the session automatically.
             // Refreshing the session doesn't always succeed, so you have to handle this.
             Console.WriteLine("Attempting to automatically log in.");
-            var response = login.TryAutoLogin();
+            var response = await login.TryAutoLoginAsync();
 
             if (!response.IsSuccess) // if cached session is invalid and failed to refresh token
             {
@@ -48,7 +48,7 @@ namespace CmlLibCoreSample
                 Console.WriteLine("Input your Mojang password: ");
                 var pw = Console.ReadLine();
 
-                response = login.Authenticate(email, pw);
+                response = await login.AuthenticateAsync(email, pw);
 
                 if (!response.IsSuccess)
                 {

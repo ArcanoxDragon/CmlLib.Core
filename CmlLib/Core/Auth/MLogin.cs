@@ -199,20 +199,20 @@ namespace CmlLib.Core.Auth
             }
         }
 
-        public MLoginResponse TryAutoLoginFromMojangLauncher()
+        public async Task<MLoginResponse> TryAutoLoginFromMojangLauncherAsync(CancellationToken cancellationToken = default)
         {
             var mojangAccounts = MojangLauncher.MojangLauncherAccounts.FromDefaultPath();
             var activeAccount = mojangAccounts.GetActiveAccount();
 
-            return TryAutoLogin(activeAccount.ToSession());
+            return await TryAutoLoginAsync(activeAccount.ToSession(), cancellationToken);
         }
 
-        public MLoginResponse TryAutoLoginFromMojangLauncher(string accountFilePath)
+        public async Task<MLoginResponse> TryAutoLoginFromMojangLauncherAsync(string accountFilePath, CancellationToken cancellationToken = default)
         {
             var mojangAccounts = MojangLauncher.MojangLauncherAccounts.FromFile(accountFilePath);
             var activeAccount = mojangAccounts.GetActiveAccount();
 
-            return TryAutoLogin(activeAccount.ToSession());
+            return await TryAutoLoginAsync(activeAccount.ToSession(), cancellationToken);
         }
 
         public Task<MLoginResponse> RefreshAsync(CancellationToken cancellationToken = default )

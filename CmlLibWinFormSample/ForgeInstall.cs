@@ -30,14 +30,14 @@ namespace CmlLibWinFormSample
             txtMC.Enabled = false;
             txtForge.Enabled = false;
 
-            new Thread(() =>
+            new Thread(async () =>
             {
                 try
                 {
                     var forge = new MForge(Path, javapath);
                     forge.FileChanged += Forge_FileChanged;
                     forge.InstallerOutput += Forge_InstallerOutput;
-                    var versionName = forge.InstallForge(txtMC.Text, txtForge.Text);
+                    var versionName = await forge.InstallForgeAsync(txtMC.Text, txtForge.Text);
                     LastInstalledVersion = versionName;
                     MessageBox.Show($"{versionName} was successfully installed");
                 }

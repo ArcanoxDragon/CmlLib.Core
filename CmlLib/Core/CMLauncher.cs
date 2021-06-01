@@ -105,10 +105,10 @@ namespace CmlLib.Core
             return j;
         }
 
-        public string CheckForge(string mcversion, string forgeversion, string java)
+        public async Task<string> CheckForgeAsync(string mcversion, string forgeversion, string java)
         {
             if (Versions == null)
-                GetAllVersions();
+                await GetAllVersionsAsync();
 
             var forgeNameOld = MForge.GetOldForgeName(mcversion, forgeversion);
             var forgeName = MForge.GetForgeName(mcversion, forgeversion);
@@ -136,9 +136,9 @@ namespace CmlLib.Core
                 var mforge = new MForge(MinecraftPath, java);
                 mforge.FileChanged += (e) => FileChanged?.Invoke(e);
                 mforge.InstallerOutput += (s, e) => LogOutput?.Invoke(this, e);
-                name = mforge.InstallForge(mcversion, forgeversion);
+                name = await mforge.InstallForgeAsync(mcversion, forgeversion);
 
-                GetAllVersions();
+                await GetAllVersionsAsync();
             }
 
             return name;
@@ -191,14 +191,14 @@ namespace CmlLib.Core
             }
         }
 
-        public Process CreateProcess(string mcversion, string forgeversion, MLaunchOption option)
+        public async Task<Process> CreateProcessAsync(string mcversion, string forgeversion, MLaunchOption option)
         {
             if (string.IsNullOrEmpty(option.JavaPath))
-                option.JavaPath = CheckJRE();
+                option.JavaPath = await CheckJREAsync();
 
-            CheckAndDownload(GetVersion(mcversion));
+            await CheckAndDownloadAsync(await GetVersionAsync(mcversion));
 
-            var versionName = CheckForge(mcversion, forgeversion, option.JavaPath);
+            var versionName = await CheckForgeAsync(mcversion, forgeversion, option.JavaPath);
 
             return CreateProcess(versionName, option);
         }

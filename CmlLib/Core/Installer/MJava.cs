@@ -167,7 +167,7 @@ namespace CmlLib.Core.Installer
         private void decompressJavaFile(string lzmaPath)
         {
             string zippath = Path.Combine(Path.GetTempPath(), "jre.zip");
-            SevenZipWrapper.DecompressFileLZMA(lzmaPath, zippath);
+            SevenZipWrapper.DecompressFileLzma(lzmaPath, zippath);
 
             var z = new SharpZip(zippath);
             z.ProgressEvent += Z_ProgressEvent;
