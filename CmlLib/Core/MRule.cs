@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace CmlLib.Core
 {
-    public class MRule
+    public static class MRule
     {
         static MRule()
         {
@@ -16,9 +16,9 @@ namespace CmlLib.Core
                 Arch = "32";
         }
 
-        public const string Windows = "windows";
-        public const string OSX = "osx";
-        public const string Linux = "linux";
+        public static readonly string Windows = "windows";
+        public static readonly string OSX = "osx";
+        public static readonly string Linux = "linux";
 
         public static string OSName { get; private set; }
         public static string Arch { get; private set; }
@@ -48,15 +48,19 @@ namespace CmlLib.Core
         {
             var require = true;
 
-            foreach (JObject job in arr)
+            foreach (var token in arr)
             {
-                var action = true; // true : "allow", false : "disallow"
-                var containCurrentOS = true; // if 'os' JArray contains current os name
+                var job = token as JObject;
+                if (job == null)
+                    continue;
+
+                bool action = true; // true : "allow", false : "disallow"
+                bool containCurrentOS = true; // if 'os' JArray contains current os name
 
                 foreach (var item in job)
                 {
                     if (item.Key == "action")
-                        action = (item.Value.ToString() == "allow" ? true : false);
+                        action = (item.Value?.ToString() == "allow");
                     else if (item.Key == "os")
                         containCurrentOS = checkOSContains((JObject)item.Value);
                     else if (item.Key == "features") // etc
@@ -74,11 +78,11 @@ namespace CmlLib.Core
             return require;
         }
 
-        static bool checkOSContains(JObject job)
+        private static bool checkOSContains(JObject job)
         {
             foreach (var os in job)
             {
-                if (os.Key == "name" && os.Value.ToString() == OSName)
+                if (os.Key == "name" && os.Value?.ToString() == OSName)
                     return true;
             }
             return false;

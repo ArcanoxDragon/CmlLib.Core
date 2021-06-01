@@ -1,21 +1,17 @@
 ﻿using System;
+using System.Threading.Tasks;
 
 namespace CmlLib.Core.Downloader
 {
     public class DownloadFile : IEquatable<DownloadFile>
     {
-        public DownloadFile(MFile type, string name, string path, string url)
-        {
-            Type = type;
-            Name = name;
-            Path = path;
-            Url = url;
-        }
+        public MFile Type { get; set; }
+        public string Name { get; set; }
+        public string Path { get; set; }
+        public string Url { get; set; }
+        public long Size { get; set; }
 
-        public MFile Type { get; private set; }
-        public string Name { get; private set; }
-        public string Path { get; private set; }
-        public string Url { get; private set; }
+        public Func<Task>[] AfterDownload { get; set; }
 
         bool IEquatable<DownloadFile>.Equals(DownloadFile other)
         {

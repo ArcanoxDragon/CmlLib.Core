@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace CmlLib.Core.Version
 {
     public class MVersionParseException : Exception
     {
-        public MVersionParseException() : base()
+        public MVersionParseException(string message) : base(message)
         {
 
         }

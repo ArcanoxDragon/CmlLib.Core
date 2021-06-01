@@ -10,7 +10,7 @@ namespace CmlLib.Core
         public MVersion StartVersion { get; set; }
         public MSession Session { get; set; }
 
-        public string JavaPath { get; set; } = "";
+        public string JavaPath { get; set; }
         public int MaximumRamMb { get; set; } = 1024;
         public int MinimumRamMb { get; set; }
         public string[] JVMArguments { get; set; }
@@ -21,9 +21,9 @@ namespace CmlLib.Core
         public string ServerIp { get; set; }
         public int ServerPort { get; set; } = 25565;
 
-        public int ScreenWidth { get; set; } = 0;
-        public int ScreenHeight { get; set; } = 0;
-        public bool FullScreen { get; set; } = false;
+        public int ScreenWidth { get; set; }
+        public int ScreenHeight { get; set; }
+        public bool FullScreen { get; set; }
 
         public string VersionType { get; set; }
         public string GameLauncherName { get; set; }

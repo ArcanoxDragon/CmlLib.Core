@@ -1,13 +1,11 @@
-﻿using CmlLib.Core.Version;
-using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 
 namespace CmlLib.Core
 {
-    public class Mapper
+    public static class Mapper
     {
         private static Regex argBracket = new Regex(@"\$?\{(.*?)}");
 

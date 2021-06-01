@@ -7,41 +7,22 @@ namespace CmlLibWinFormSample
 {
     public partial class LoginForm : Form
     {
-        public LoginForm(MSession session)
+        public LoginForm()
         {
-            this.Session = session;
             InitializeComponent();
         }
 
-        public MSession Session;
         MLogin login = new MLogin();
 
         private void LoginForm_Load(object sender, EventArgs e)
         {
-            UpdateSession(Session);
-            UpdateCachedSession();
             btnAutoLogin_Click(null, null);
-        }
-
-        private void UpdateCachedSession()
-        {
-            var th = new Thread(() =>
-            {
-                var session = login.ReadSessionCache();
-                Invoke(new Action(() =>
-                {
-                    lvATc.Text = session.AccessToken;
-                    lvUsernamec.Text = session.Username;
-                    lvUUIDc.Text = session.UUID;
-                    lvCTc.Text = session.ClientToken;
-                }));
-            });
-            th.Start();
         }
 
         private void btnAutoLogin_Click(object sender, EventArgs e)
         {
             gMojangLogin.Enabled = false;
+            gOfflineLogin.Enabled = false;
 
             var th = new Thread(() =>
             {
@@ -53,6 +34,7 @@ namespace CmlLibWinFormSample
                     Invoke(new Action(() =>
                     {
                         gMojangLogin.Enabled = true;
+                        gOfflineLogin.Enabled = true;
                     }));
                     return;
                 }
@@ -61,8 +43,47 @@ namespace CmlLibWinFormSample
                 Invoke(new Action(() =>
                 {
                     gMojangLogin.Enabled = true;
+                    gOfflineLogin.Enabled = true;
 
                     btnAutoLogin.Enabled = false;
+                    btnLogin.Enabled = false;
+                    btnAutoLoginMojangLauncher.Enabled = false;
+                    btnLogin.Text = "Auto Login\nSuccess";
+
+                    UpdateSession(result.Session);
+                }));
+            });
+            th.Start();
+        }
+
+        private void btnAutoLoginMojangLauncher_Click(object sender, EventArgs e)
+        {
+            gMojangLogin.Enabled = false;
+            gOfflineLogin.Enabled = false;
+
+            var th = new Thread(() =>
+            {
+                var result = login.TryAutoLoginFromMojangLauncher();
+
+                if (result.Result != MLoginResult.Success)
+                {
+                    MessageBox.Show($"Failed to AutoLogin : {result.Result}\n{result.ErrorMessage}");
+                    Invoke(new Action(() =>
+                    {
+                        gMojangLogin.Enabled = true;
+                        gOfflineLogin.Enabled = true;
+                    }));
+                    return;
+                }
+
+                MessageBox.Show("Auto Login Success!");
+                Invoke(new Action(() =>
+                {
+                    gMojangLogin.Enabled = true;
+                    gOfflineLogin.Enabled = true;
+
+                    btnAutoLogin.Enabled = false;
+                    btnAutoLoginMojangLauncher.Enabled = false;
                     btnLogin.Enabled = false;
                     btnLogin.Text = "Auto Login\nSuccess";
 
@@ -81,6 +102,7 @@ namespace CmlLibWinFormSample
             }
 
             gMojangLogin.Enabled = false;
+            gOfflineLogin.Enabled = false;
 
             var th = new Thread(new ThreadStart(delegate
             {
@@ -99,6 +121,7 @@ namespace CmlLibWinFormSample
                     Invoke(new Action(() =>
                     {
                         gMojangLogin.Enabled = true;
+                        gOfflineLogin.Enabled = true;
                     }));
                 }
             }));
@@ -112,7 +135,6 @@ namespace CmlLibWinFormSample
             {
                 MessageBox.Show("Success");
                 gMojangLogin.Enabled = true;
-                UpdateCachedSession();
             }
             else
                 MessageBox.Show("Fail");
@@ -125,7 +147,6 @@ namespace CmlLibWinFormSample
             {
                 MessageBox.Show("Success");
                 gMojangLogin.Enabled = true;
-                UpdateCachedSession();
             }
             else
                 MessageBox.Show("Fail");
@@ -136,27 +157,21 @@ namespace CmlLibWinFormSample
             login.DeleteTokenFile();
             MessageBox.Show("Success");
             gMojangLogin.Enabled = true;
-            UpdateCachedSession();
         }
 
         private void btnOfflineLogin_Click(object sender, EventArgs e)
         {
             UpdateSession(MSession.GetOfflineSession(txtUsername.Text));
-            MessageBox.Show("Success");
         }
 
         private void UpdateSession(MSession session)
         {
-            this.Session = session;
-            lvAT.Text = session.AccessToken;
-            lvUsername.Text = session.Username;
-            lvUUID.Text = session.UUID;
-            UpdateCachedSession();
-        }
+            // Success to login!
 
-        private void button1_Click(object sender, EventArgs e)
-        {
-            this.Close();
+            var mainForm = new MainForm(session);
+            mainForm.FormClosed += (s, e) => this.Close();
+            mainForm.Show();
+            this.Hide();
         }
     }
 }

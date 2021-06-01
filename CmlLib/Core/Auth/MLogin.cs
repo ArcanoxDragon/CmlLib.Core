@@ -8,6 +8,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+// use new library:
+// https://github.com/CmlLib/MojangAPI
+
 namespace CmlLib.Core.Auth
 {
     public enum MLoginResult { Success, BadRequest, WrongAccount, NeedLogin, UnknownError, NoProfile }
@@ -55,15 +58,15 @@ namespace CmlLib.Core.Auth
         {
             if (File.Exists(SessionCacheFilePath))
             {
-                var filedata = File.ReadAllText(SessionCacheFilePath, Encoding.UTF8);
+                var fileData = File.ReadAllText(SessionCacheFilePath, Encoding.UTF8);
                 try
                 {
-                    var session = JsonConvert.DeserializeObject<MSession>(filedata, new JsonSerializerSettings()
+                    var session = JsonConvert.DeserializeObject<MSession>(fileData, new JsonSerializerSettings
                     {
                         NullValueHandling = NullValueHandling.Ignore
-                    });
+                    }) ?? new MSession();
 
-					if ( SaveSession && session != null && string.IsNullOrEmpty( session.ClientToken ) )
+                    if (SaveSession && string.IsNullOrEmpty(session.ClientToken))
                         session.ClientToken = CreateNewClientToken();
 
                     return session;
@@ -96,7 +99,7 @@ namespace CmlLib.Core.Auth
                 return new MLoginResponse(MLoginResult.NoProfile, null, null, json);
             else
             {
-                var session = new MSession()
+                var session = new MSession
                 {
                     AccessToken = job["accessToken"]?.ToString(),
                     UUID = profile["id"]?.ToString(),
@@ -194,6 +197,22 @@ namespace CmlLib.Core.Auth
             {
                 return new MLoginResponse(MLoginResult.UnknownError, null, ex.ToString(), null);
             }
+        }
+
+        public MLoginResponse TryAutoLoginFromMojangLauncher()
+        {
+            var mojangAccounts = MojangLauncher.MojangLauncherAccounts.FromDefaultPath();
+            var activeAccount = mojangAccounts.GetActiveAccount();
+
+            return TryAutoLogin(activeAccount.ToSession());
+        }
+
+        public MLoginResponse TryAutoLoginFromMojangLauncher(string accountFilePath)
+        {
+            var mojangAccounts = MojangLauncher.MojangLauncherAccounts.FromFile(accountFilePath);
+            var activeAccount = mojangAccounts.GetActiveAccount();
+
+            return TryAutoLogin(activeAccount.ToSession());
         }
 
         public Task<MLoginResponse> RefreshAsync(CancellationToken cancellationToken = default )

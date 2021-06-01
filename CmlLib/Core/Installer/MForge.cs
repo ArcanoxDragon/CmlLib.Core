@@ -1,4 +1,5 @@
-﻿using CmlLib.Core.Version;
+﻿using CmlLib.Core.Downloader;
+using CmlLib.Core.Files;
 using CmlLib.Utils;
 using ICSharpCode.SharpZipLib.Zip;
 using Newtonsoft.Json.Linq;
@@ -12,11 +13,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace CmlLib.Core.Downloader
+namespace CmlLib.Core.Installer
 {
     public class MForge
     {
-        const string MavenServer = "https://files.minecraftforge.net/maven/net/minecraftforge/forge/";
+        private const string MavenServer = "https://files.minecraftforge.net/maven/net/minecraftforge/forge/";
 
         public static string GetOldForgeName(string mcVersion, string forgeVersion)
         {
@@ -32,10 +33,12 @@ namespace CmlLib.Core.Downloader
         {
             this.Minecraft = mc;
             JavaPath = java;
+            Downloader = new SequenceDownloader();
         }
 
         public string JavaPath { get; private set; }
-        MinecraftPath Minecraft;
+        private readonly MinecraftPath Minecraft;
+        private readonly IDownloader Downloader;
         public event DownloadFileChangedHandler FileChanged;
         public event EventHandler<string> InstallerOutput;
 
@@ -48,7 +51,10 @@ namespace CmlLib.Core.Downloader
             var installerPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
 
             var installerStream = getInstallerStream(mcversion, forgeversion); // download installer
-            var (profileObj, installerObj) = extractInstaller(installerStream, installerPath); // extract installer
+            var extractedFile = extractInstaller(installerStream, installerPath); // extract installer
+
+            var profileObj = extractedFile.Item1; // version profile json
+            var installerObj = extractedFile.Item2; // installer info
 
             // copy forge libraries to minecraft
             extractMaven(installerPath); // new installer
@@ -85,10 +91,9 @@ namespace CmlLib.Core.Downloader
                 $"forge-{mcversion}-{forgeversion}-installer.jar";
 
             return WebRequest.Create(url).GetResponse().GetResponseStream();
-            //return File.OpenRead(@"C:\temp\forge-1.16.2-33.0.5-installer.jar");
         }
 
-        private (JToken, JToken) extractInstaller(Stream stream, string extractPath)
+        private Tuple<JToken, JToken> extractInstaller(Stream stream, string extractPath)
         {
             // extract installer
             string install_profile = null;
@@ -134,7 +139,7 @@ namespace CmlLib.Core.Downloader
                 profileObj = versionInfo;
             }
 
-            return (profileObj, installObj);
+            return new Tuple<JToken, JToken>(profileObj, installObj);
         }
 
         private string readStreamString(Stream s)
@@ -245,15 +250,20 @@ namespace CmlLib.Core.Downloader
                 return;
 
             var libs = new List<MLibrary>();
+            var parser = new MLibraryParser();
             foreach (var item in jarr)
             {
-                var parsedLib = MLibraryParser.ParseJsonObject((JObject)item);
+                var parsedLib = parser.ParseJsonObject((JObject)item);
                 libs.AddRange(parsedLib);
             }
 
-            var downloader = new MDownloader(Minecraft);
-            downloader.ChangeFile += (e) => FileChanged?.Invoke(e);
-            await downloader.DownloadLibrariesAsync(libs.ToArray(), cancellationToken);
+            var fileProgress = new Progress<DownloadFileChangedEventArgs>(
+                e => FileChanged?.Invoke(e));
+            
+            var libraryChecker = new LibraryChecker();
+            var lostLibrary = libraryChecker.CheckFiles(Minecraft, libs.ToArray(), fileProgress);
+            
+            Downloader.DownloadFiles(lostLibrary, fileProgress, null);
         }
 
         private void process(JArray processors, Dictionary<string, string> mapData)

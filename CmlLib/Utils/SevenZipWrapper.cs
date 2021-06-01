@@ -6,7 +6,7 @@ using LzmaDecoder = SevenZip.Compression.LZMA.Decoder;
 
 namespace CmlLib.Utils
 {
-    class SevenZipWrapper
+    internal static class SevenZipWrapper
     {
         public static async Task DecompressFileLzmaAsync(string inFile, string outFile, CancellationToken cancellationToken = default)
         {

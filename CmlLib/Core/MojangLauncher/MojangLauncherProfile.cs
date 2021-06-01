@@ -1,33 +1,31 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using Newtonsoft.Json.Linq;
 using CmlLib.Core.Auth;
 
-namespace CmlLib.Core.LauncherProfile
+namespace CmlLib.Core.MojangLauncher
 {
-    public class MLauncherProfile
+    public class MojangLauncherProfile
     {
-        private MLauncherProfile() { }
+        private MojangLauncherProfile() { }
 
-        public static MLauncherProfile LoadFromDefaultPath()
+        public static MojangLauncherProfile LoadFromDefaultPath()
         {
             return LoadFromFile(Path.Combine(MinecraftPath.GetOSDefaultPath(), "launcher_profiles.json"));
         }
 
-        public static MLauncherProfile LoadFromFile(string profilePath)
+        public static MojangLauncherProfile LoadFromFile(string profilePath)
         {
             var json = File.ReadAllText(profilePath);
             return Load(json);
         }
 
-        public static MLauncherProfile Load(string json)
+        public static MojangLauncherProfile Load(string json)
         {
             var job = JObject.Parse(json);
 
-            var profile = new MLauncherProfile();
+            var profile = new MojangLauncherProfile();
 
             profile.LauncherVersion = job["launcherVersion"]?["profilesFormat"]?.ToString();
 

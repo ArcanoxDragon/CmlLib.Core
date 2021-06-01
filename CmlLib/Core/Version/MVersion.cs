@@ -1,18 +1,14 @@
-﻿using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.IO;
+﻿using CmlLib.Core.Files;
 using System.Linq;
-using System.Net;
 
 namespace CmlLib.Core.Version
 {
     public class MVersion
     {
-        public bool IsInherited { get; set; } = false;
-        public string ParentVersionId { get; set; } = "";
+        public bool IsInherited { get; set; }
+        public string ParentVersionId { get; set; }
 
-        public string Id { get; set; } = "";
+        public string Id { get; set; }
 
         public string AssetId { get; set; } = "";
         public string AssetUrl { get; set; } = "";
@@ -88,9 +84,14 @@ namespace CmlLib.Core.Version
             }
         }
 
-        static bool nc(string t) // check null string
+        private static bool nc(string t) // check null string
         {
-            return t == null || t == "";
+            return string.IsNullOrEmpty(t);
+        }
+
+        public override string ToString()
+        {
+            return this.Id;
         }
     }
 }

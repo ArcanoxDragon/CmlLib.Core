@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 
 namespace CmlLib.Core
 {
@@ -12,8 +10,8 @@ namespace CmlLib.Core
     {
         private const int DefaultServerPort = 25565;
 
-        public const string SupportVersion = "1.16.1";
-        public readonly static string[] DefaultJavaParameter = new string[]
+        public static readonly string SupportVersion = "1.16.6";
+        public readonly static string[] DefaultJavaParameter = 
             {
                 "-XX:+UnlockExperimentalVMOptions",
                 "-XX:+UseG1GC",
@@ -27,10 +25,10 @@ namespace CmlLib.Core
         {
             option.CheckValid();
             LaunchOption = option;
-            this.MinecraftPath = option.Path;
+            this.minecraftPath = option.Path;
         }
 
-        MinecraftPath MinecraftPath;
+        private readonly MinecraftPath minecraftPath;
         public MLaunchOption LaunchOption { get; private set; }
 
         /// <summary>
@@ -50,11 +48,12 @@ namespace CmlLib.Core
             Process mc = new Process();
             mc.StartInfo.FileName = LaunchOption.JavaPath;
             mc.StartInfo.Arguments = arg;
-            mc.StartInfo.WorkingDirectory = MinecraftPath.BasePath;
+            mc.StartInfo.WorkingDirectory = minecraftPath.BasePath;
 
             return mc;
         }
 
+        [MethodTimer.Time]
         public string[] CreateArg()
         {
             var version = LaunchOption.StartVersion;
@@ -85,17 +84,17 @@ namespace CmlLib.Core
 
             var libraries = version.Libraries
                 .Where(lib => lib.IsRequire && !lib.IsNative)
-                .Select(lib => Path.GetFullPath(Path.Combine(MinecraftPath.Library, lib.Path)));
+                .Select(lib => Path.GetFullPath(Path.Combine(minecraftPath.Library, lib.Path)));
             classpath.AddRange(libraries);
-            classpath.Add(MinecraftPath.GetVersionJarPath(version.Jar));
+            classpath.Add(minecraftPath.GetVersionJarPath(version.Jar));
 
             var classpathStr = IOUtil.CombinePath(classpath.ToArray());
 
-            var native = new MNative(MinecraftPath, LaunchOption.StartVersion);
+            var native = new MNative(minecraftPath, LaunchOption.StartVersion);
             native.CleanNatives();
             var nativePath = native.ExtractNatives();
 
-            var jvmdict = new Dictionary<string, string>()
+            var jvmdict = new Dictionary<string, string>
             {
                 { "natives_directory", nativePath },
                 { "launcher_name", useNotNull(LaunchOption.GameLauncherName, "minecraft-launcher") },
@@ -114,18 +113,18 @@ namespace CmlLib.Core
             args.Add(version.MainClass);
 
             // Game Arguments
-            var gameDict = new Dictionary<string, string>()
+            var gameDict = new Dictionary<string, string>
             {
                 { "auth_player_name" , LaunchOption.Session.Username },
                 { "version_name"     , LaunchOption.StartVersion.Id },
-                { "game_directory"   , MinecraftPath.BasePath },
-                { "assets_root"      , MinecraftPath.Assets },
+                { "game_directory"   , minecraftPath.BasePath },
+                { "assets_root"      , minecraftPath.Assets },
                 { "assets_index_name", version.AssetId },
                 { "auth_uuid"        , LaunchOption.Session.UUID },
                 { "auth_access_token", LaunchOption.Session.AccessToken },
                 { "user_properties"  , "{}" },
                 { "user_type"        , "Mojang" },
-                { "game_assets"      , MinecraftPath.GetAssetLegacyPath() },
+                { "game_assets"      , minecraftPath.GetAssetLegacyPath(version.AssetId) },
                 { "auth_session"     , LaunchOption.Session.AccessToken },
                 { "version_type"     , useNotNull(LaunchOption.VersionType, version.TypeStr) }
             };
@@ -157,7 +156,7 @@ namespace CmlLib.Core
         }
 
         // if input1 is null, return input2
-        string useNotNull(string input1, string input2)
+        private string useNotNull(string input1, string input2)
         {
             if (string.IsNullOrEmpty(input1))
                 return input2;
@@ -165,7 +164,7 @@ namespace CmlLib.Core
                 return input1;
         }
 
-        string handleEmpty(string input)
+        private string handleEmpty(string input)
         {
             if (input.Contains(" "))
                 return "\"" + input + "\"";

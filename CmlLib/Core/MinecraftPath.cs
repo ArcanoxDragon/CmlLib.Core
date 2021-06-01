@@ -5,7 +5,7 @@ namespace CmlLib.Core
 {
     public class MinecraftPath
     {
-        public readonly static string
+        public static readonly string
     MacDefaultPath = Environment.GetEnvironmentVariable("HOME") + "/Library/Application Support/minecraft",
     LinuxDefaultPath = Environment.GetEnvironmentVariable("HOME") + "/.minecraft",
     WindowsDefaultPath = Environment.GetEnvironmentVariable("appdata") + "\\.minecraft";
@@ -25,32 +25,38 @@ namespace CmlLib.Core
             }
         }
 
-        public MinecraftPath()
+        public MinecraftPath() : this(GetOSDefaultPath())
         {
-            var basePath = GetOSDefaultPath();
-            Initialize(basePath, basePath);
+
         }
 
-        public MinecraftPath(string basePath)
+        public MinecraftPath(string basePath) : this(basePath, basePath)
         {
-            Initialize(basePath, basePath);
+
         }
 
         public MinecraftPath(string basePath, string basePathForAssets)
         {
-            Initialize(basePath, basePathForAssets);
+            BasePath = NormalizePath(basePath);
+
+            Library = NormalizePath(BasePath + "/libraries");
+            Versions = NormalizePath(BasePath + "/versions");
+            Resource = NormalizePath(BasePath + "/resources");
+
+            Runtime = NormalizePath(BasePath + "/runtime");
+            Assets = NormalizePath(basePathForAssets + "/assets");
+
+            CreateDirs();
         }
 
-        private void Initialize(string p, string assetsPath)
+        public void CreateDirs()
         {
-            BasePath = Dir(p);
-
-            Library = Dir(BasePath + "/libraries");
-            Versions = Dir(BasePath + "/versions");
-            Resource = Dir(BasePath + "/resources");
-
-            Runtime = Dir(BasePath + "/runtime");
-            Assets = Dir(assetsPath + "/assets");
+            Dir(BasePath);
+            Dir(Library);
+            Dir(Versions);
+            Dir(Resource);
+            Dir(Runtime);
+            Dir(Assets);
         }
 
         public string BasePath { get; set; }
@@ -61,22 +67,22 @@ namespace CmlLib.Core
         public string Runtime { get; set; }
 
         public virtual string GetIndexFilePath(string assetId)
-            => $"{Assets}/indexes/{assetId}.json";
+            => NormalizePath($"{Assets}/indexes/{assetId}.json");
 
-        public virtual string GetAssetObjectPath()
-            => $"{Assets}/objects";
+        public virtual string GetAssetObjectPath(string assetId)
+            => NormalizePath($"{Assets}/objects");
 
-        public virtual string GetAssetLegacyPath()
-            => $"{Assets}/virtual/legacy";
+        public virtual string GetAssetLegacyPath(string assetId)
+            => NormalizePath($"{Assets}/virtual/legacy");
 
         public virtual string GetVersionJarPath(string id)
-            => $"{Versions}/{id}/{id}.jar";
+            => NormalizePath($"{Versions}/{id}/{id}.jar");
 
         public virtual string GetVersionJsonPath(string id)
-            => $"{Versions}/{id}/{id}.json";
+            => NormalizePath($"{Versions}/{id}/{id}.json");
 
         public virtual string GetNativePath(string id)
-            => $"{Versions}/{id}/natives";
+            => NormalizePath($"{Versions}/{id}/natives");
 
         public override string ToString()
         {
@@ -85,11 +91,18 @@ namespace CmlLib.Core
 
         protected static string Dir(string path)
         {
-            var p = Path.GetFullPath(path);
+            string p = NormalizePath(path);
             if (!Directory.Exists(p))
                 Directory.CreateDirectory(p);
 
             return p;
+        }
+
+        protected static string NormalizePath(string path)
+        {
+            return Path.GetFullPath(path)
+                .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar)
+                .TrimEnd(Path.DirectorySeparatorChar);
         }
     }
 }

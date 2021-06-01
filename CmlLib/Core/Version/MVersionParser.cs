@@ -1,13 +1,13 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using CmlLib.Core.Files;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
-using System.Text;
 
 namespace CmlLib.Core.Version
 {
-    public class MVersionParser
+    public static class MVersionParser
     {
         public static MVersion Parse(MVersionMetadata info)
         {
@@ -28,7 +28,7 @@ namespace CmlLib.Core.Version
             catch (MVersionParseException ex)
             {
                 ex.VersionName = info.Name;
-                throw ex;
+                throw;
             }
         }
 
@@ -42,8 +42,10 @@ namespace CmlLib.Core.Version
                     using (var wc = new WebClient())
                     {
                         json = wc.DownloadString(info.Path);
-                        var path = savePath.GetVersionJsonPath(info.Name);
-                        Directory.CreateDirectory(Path.GetDirectoryName(path));
+                        string path = savePath.GetVersionJsonPath(info.Name);
+                        var directoryName = Path.GetDirectoryName(path);
+                        if (!string.IsNullOrEmpty((directoryName)))
+                            Directory.CreateDirectory(directoryName);
                         File.WriteAllText(path, json);
 
                         return ParseFromJson(json);
@@ -55,13 +57,13 @@ namespace CmlLib.Core.Version
             catch (MVersionParseException ex)
             {
                 ex.VersionName = info.Name;
-                throw ex;
+                throw;
             }
         }
 
         public static MVersion ParseFromFile(string path)
         {
-            var json = File.ReadAllText(path);
+            string json = File.ReadAllText(path);
             return ParseFromJson(json);
         }
 
@@ -74,6 +76,8 @@ namespace CmlLib.Core.Version
 
                 // id
                 version.Id = job["id"]?.ToString();
+                if (string.IsNullOrEmpty(version.Id))
+                    throw new MVersionParseException("Empty version id");
 
                 // assets
                 var assetindex = (JObject)job["assetIndex"];
@@ -96,15 +100,19 @@ namespace CmlLib.Core.Version
                 }
 
                 // libraries
-                var libJArr = (JArray)job["libraries"];
+                var libJArr = job["libraries"] as JArray;
+                if (libJArr != null)
+                {
                 var libList = new List<MLibrary>(libJArr.Count);
+                var libParser = new MLibraryParser();
                 foreach (var item in libJArr)
                 {
-                    var libs = MLibraryParser.ParseJsonObject((JObject)item);
+                    var libs = libParser.ParseJsonObject((JObject)item);
                     if (libs != null)
                         libList.AddRange(libs);
                 }
                 version.Libraries = libList.ToArray();
+                }
 
                 // mainClass
                 version.MainClass = n(job["mainClass"]?.ToString());
@@ -141,13 +149,17 @@ namespace CmlLib.Core.Version
 
                 return version;
             }
+            catch (MVersionParseException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 throw new MVersionParseException(ex);
             }
         }
 
-        static string[] argParse(JArray arr)
+        private static string[] argParse(JArray arr)
         {
             var strList = new List<string>(arr.Count);
 
@@ -182,9 +194,9 @@ namespace CmlLib.Core.Version
             return strList.ToArray();
         }
 
-        static string n(string t) // handle null string
+        private static string n(string t) // handle null string
         {
-            return t == null ? "" : t;
+            return t ?? "";
         }
     }
 }

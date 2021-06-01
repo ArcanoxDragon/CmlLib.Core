@@ -2,118 +2,125 @@
 
 ## Minecraft Launcher Library
 
-This library is minecraft launcher library for .NET Core and .NET Framework  
+<img src='https://raw.githubusercontent.com/CmlLib/CmlLib.Core/master/logo.png' width=150>
+
+This library is minecraft launcher library for .NET 5.0 / .NET Core 3.1 / .NET Framework 4.6.2  
 Support all version, with Forge
 
 [한국어 README](https://github.com/AlphaBs/CmlLib.Core/blob/master/docs/README-kr.md)  
-한국어 문서는 최신 버전이 아닙니다. 빠른 시일 내에 업데이트하겠습니다.
+한국어 문서는 최신 버전이 아닙니다. 빠른 시일 내에 업데이트하겠습니다.  
+궁금하신게 있다면 아래 디스코드 서버 접속해서 한국어 문의하기 채널에서 물어봐주세요.  
+
+### Contact
+
+![Discord](https://img.shields.io/discord/795952027443527690?label=discord&logo=discord&style=for-the-badge)  
+
 
 ## Version
 
-Current version : 3.0.0
-
-(old versions)
-[v2.0.2](https://github.com/AlphaBs/CmlLib.Core/tree/v2.0.2)
+Current version: 3.2.0-pre1
 
 ## Functions
 
--   [x] Online / Offline Login
--   [x] Download game files in mojang file server
--   [x] Launch All Versions (tested up to 1.16.2)
--   [x] Launch Forge, Optifine or custom versions
--   [x] Download minecraft java runtime in mojang file server
--   [x] Install Forge
+-   [x] Asynchronous APIs
+-   [x] Online or Offline login
+-   [x] Download the game files from the Mojang file server
+-   [x] Launch any version (tested up to 1.16.5)
+-   [x] Launch Forge, Optifine, FabricMC, LiteLoader or any other custom version
+-   [x] Download the Minecraft java runtime from the Mojang file server
 -   [x] Launch with options (direct server connecting, screen resolution)
--   [x] Support cross-platform (win10, ubuntu, mac, only on .NET Core)
+-   [x] Supports cross-platform (windows, ubuntu, mac, only on .NET Core)
+-   [x] Microsoft Xbox Live Login
 
-## **Install**
+## How to Install
 
-Install Nuget Package 'CmlLib.Core'  
-or download dll files in [Releases](https://github.com/AlphaBs/CmlLib.Core/releases) and add reference to your project.
+Install the 'CmlLib.Core' Nuget package or download the dll files in [Releases](https://github.com/AlphaBs/CmlLib.Core/releases) and add references to them in your project.
 
-write this on the top of your source code:
+Write this at the top of your source code:
+```csharp
+using CmlLib.Core;
+using CmlLib.Core.Auth;
+```
+## How to Use
 
-     using CmlLib.Core;
-
-## How To Use
-
-Official Documentation : [wiki](https://github.com/AlphaBs/CmlLib.Core/wiki)
+Official documentation: [wiki](https://github.com/AlphaBs/CmlLib.Core/wiki)
 
 **[Sample Code](https://github.com/AlphaBs/CmlLib.Core/wiki/Sample-Code)**
 
 **Login**
 
-     var login = new MLogin();
-     var response = login.TryAutoLogin();
+[Login Process](https://github.com/AlphaBs/CmlLib.Core/wiki/Login-and-Sessions)
 
-     if (!response.IsSuccess) // failed to auto login
-     {
-         var email = Console.ReadLine();
-         var pw = Console.ReadLine();
-         response = login.Authenticate(email, pw);
+```csharp
+var login = new MLogin();
+var response = login.TryAutoLogin();
 
-         if (!response.IsSuccess)
-              throw new Exception(session.Result.ToString()) // failed to login
-     }
+if (!response.IsSuccess) // failed to automatically log in
+{
+    var email = Console.ReadLine();
+    var pw = Console.ReadLine();
+    response = login.Authenticate(email, pw);
 
-     // This session variable is the result of login.
-     // and used in MLaunchOption, in the Launch part below
-     var session = response.Session;
+    if (!response.IsSuccess)
+         throw new Exception(session.Result.ToString()) // failed to log in
+}
 
+// This session variable is the result of logging in and is used in MLaunchOption, in the Launch part below.
+var session = response.Session;
+```
 **Offline Login**
-
-     // This session variable is the result of login.
-     // and used in MLaunchOption, in the Launch part below
-     var session = MSession.GetOfflineSession("USERNAME");
-
+```csharp
+// This session variable is the result of logging in and is used in MLaunchOption, in the Launch part below.
+var session = MSession.GetOfflineSession("USERNAME");
+```
 **Launch**
+```csharp
+// increase connection limit to fast download
+System.Net.ServicePointManager.DefaultConnectionLimit = 256;
 
-     //var path = new MinecraftPath("game_directory_path");
-     var path = new MinecraftPath(); // use default directory
+//var path = new MinecraftPath("game_directory_path");
+var path = new MinecraftPath(); // use default directory
 
-     var launcher = new CMLauncher(path);
-     launcher.FileChanged += (e) =>
-     {
-         Console.WriteLine("[{0}] {1} - {2}/{3}", e.FileKind.ToString(), e.FileName, e.ProgressedFileCount, e.TotalFileCount);
-     };
-     launcher.ProgressChanged += (s, e) =>
-     {
-         Console.WriteLine("{0}%", e.ProgressPercentage);
-     };
+var launcher = new CMLauncher(path);
+launcher.FileChanged += (e) =>
+{
+    Console.WriteLine("[{0}] {1} - {2}/{3}", e.FileKind.ToString(), e.FileName, e.ProgressedFileCount, e.TotalFileCount);
+};
+launcher.ProgressChanged += (s, e) =>
+{
+    Console.WriteLine("{0}%", e.ProgressPercentage);
+};
 
-     foreach (var item in launcher.GetAllVersions())
-     {
-         Console.WriteLine(item.Name);
-     }
+var versions = await launcher.GetAllVersionsAsync();
+foreach (var item in versions)
+{
+    // show all version names
+    // use this version name in CreateProcessAsync method.
+    Console.WriteLine(item.Name);
+}
 
-     var launchOption = new MLaunchOption
-     {
-         MaximumRamMb = 1024,
-         Session = session, // Login Session. ex) Session = MSession.GetOfflineSession("hello")
+var launchOption = new MLaunchOption
+{
+    MaximumRamMb = 1024,
+    Session = MSession.GetOfflineSession("hello"), // Login Session. ex) Session = MSession.GetOfflineSession("hello")
 
-         //ScreenWidth = 1600,
-         //ScreenHeigth = 900,
-         //ServerIp = "mc.hypixel.net"
-     };
+    //ScreenWidth = 1600,
+    //ScreenHeigth = 900,
+    //ServerIp = "mc.hypixel.net"
+};
 
-     // launch vanila
-     var process = launcher.CreateProcess("1.15.2", launchOption);
+//var process = await launcher.CreateProcessAsync("input version name here", launchOption);
+var process = await launcher.CreateProcessAsync("1.15.2", launchOption); // vanilla
+// var process = await launcher.CreateProcessAsync("1.12.2-forge1.12.2-14.23.5.2838", launchOption); // forge
+// var process = await launcher.CreateProcessAsync("1.12.2-LiteLoader1.12.2"); // liteloader
+// var process = await launcher.CreateProcessAsync("fabric-loader-0.11.3-1.16.5") // fabric-loader
 
-     // launch forge
-     // var process = launcher.CreateProcess("1.16.2", "33.0.5", launchOption);
+process.Start();
+```
+### More information
 
-     process.Start();
-
-### More Information
-
-Go to [wiki](https://github.com/AlphaBs/CmlLib.Core/wiki/MLaunchOption)
+Go to [wiki](https://github.com/AlphaBs/CmlLib.Core/wiki)
 
 ### What is different between CmlLib.Core and [CmlLib](https://github.com/AlphaBs/MinecraftLauncherLibrary)?
 
-CmlLib.Core is developed using .NET Core and support crossplatform. but CmlLib doesn't support it is deprecated.
-
-### Contacts
-
-Email : ksi123456ab@naver.com  
-Discord : ksi123456ab#3719  
-_(I prefer discord)_
+CmlLib.Core is developed using .NET Core and supports cross platform, but CmlLib doesn't support it, and is deprecated.
