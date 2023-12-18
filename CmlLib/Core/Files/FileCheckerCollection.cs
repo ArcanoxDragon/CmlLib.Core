@@ -10,13 +10,15 @@ namespace CmlLib.Core.Files
 
         private readonly List<IFileChecker> checkers;
 
-        private AssetChecker asset = new AssetChecker();
-        public AssetChecker AssetFileChecker
+        private AssetChecker? asset;
+        public AssetChecker? AssetFileChecker
         {
             get => asset;
             set
             {
-                checkers.Remove(asset);
+                if (asset != null)
+                    checkers.Remove(asset);
+                
                 asset = value;
 
                 if (asset != null)
@@ -24,13 +26,15 @@ namespace CmlLib.Core.Files
             }
         }
 
-        private ClientChecker client = new ClientChecker();
-        public ClientChecker ClientFileChecker
+        private ClientChecker? client;
+        public ClientChecker? ClientFileChecker
         {
             get => client;
             set
             {
-                checkers.Remove(client);
+                if (client != null)
+                    checkers.Remove(client);
+                
                 client = value;
 
                 if (client != null)
@@ -38,13 +42,15 @@ namespace CmlLib.Core.Files
             }
         }
 
-        private LibraryChecker library = new LibraryChecker();
-        public LibraryChecker LibraryFileChecker
+        private LibraryChecker? library;
+        public LibraryChecker? LibraryFileChecker
         {
             get => library;
             set
             {
-                checkers.Remove(library);
+                if (library != null)
+                    checkers.Remove(library);
+                
                 library = value;
 
                 if (library != null)
@@ -52,14 +58,54 @@ namespace CmlLib.Core.Files
             }
         }
 
+        private JavaChecker? java;
+
+        public JavaChecker? JavaFileChecker
+        {
+            get => java;
+            set
+            {
+                if (java != null)
+                    checkers.Remove(java);
+
+                java = value;
+                
+                if (java != null)
+                    checkers.Add(java);
+            }
+        }
+
+        private LogChecker? log;
+        public LogChecker? LogFileChecker
+        {
+            get => log;
+            set
+            {
+                if (log != null)
+                    checkers.Remove(log);
+
+                log = value;
+
+                if (log != null)
+                    checkers.Add(log);
+            }
+        }
+
         public FileCheckerCollection()
         {
-            checkers = new List<IFileChecker>(3);
+            checkers = new List<IFileChecker>(4);
 
-            checkers.AddRange(new IFileChecker[]
-            {
-                LibraryFileChecker, AssetFileChecker, ClientFileChecker
-            });
+            library = new LibraryChecker();
+            asset = new AssetChecker();
+            client = new ClientChecker();
+            java = new JavaChecker();
+            log = new LogChecker();
+
+            checkers.Add(library);
+            checkers.Add(asset);
+            checkers.Add(client);
+            checkers.Add(log);
+            checkers.Add(java);
         }
 
         public void Add(IFileChecker item)
@@ -68,11 +114,12 @@ namespace CmlLib.Core.Files
             checkers.Add(item);
         }
 
-        public void AddRange(IEnumerable<IFileChecker> items)
+        public void AddRange(IEnumerable<IFileChecker?> items)
         {
-            foreach (IFileChecker item in items)
+            foreach (IFileChecker? item in items)
             {
-                Add(item);
+                if (item != null)
+                    Add(item);
             }
         }
 
@@ -105,6 +152,8 @@ namespace CmlLib.Core.Files
                 throw new ArgumentException($"Set {nameof(AssetFileChecker)} property.");
             if (item is ClientChecker)
                 throw new ArgumentException($"Set {nameof(ClientFileChecker)} property.");
+            if (item is JavaChecker)
+                throw new ArgumentException($"Set {nameof(JavaFileChecker)} property.");
         }
 
         public IEnumerator<IFileChecker> GetEnumerator()

@@ -3,6 +3,7 @@ using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
+using CmlLib.Core.VersionMetadata;
 
 namespace CmlLib.Core.VersionLoader
 {
@@ -10,26 +11,26 @@ namespace CmlLib.Core.VersionLoader
     {
         public MVersionCollection GetVersionMetadatas()
         {
-            using (var wc = new WebClient())
-            {
-                var res = wc.DownloadString(MojangServer.Version);
-                return parseList(res);
-            }
+            using var wc = new WebClient();
+            var res = wc.DownloadString(MojangServer.Version);
+            return parseList(res);
         }
 
-        public Task<MVersionCollection> GetVersionMetadatasAsync()
+        public async Task<MVersionCollection> GetVersionMetadatasAsync()
         {
-            return Task.Run(GetVersionMetadatas);
+            using var wc = new WebClient();
+            var res = await wc.DownloadStringTaskAsync(MojangServer.Version);
+            return parseList(res);
         }
 
         [MethodTimer.Time]
         private MVersionCollection parseList(string res)
         {
-            string latestReleaseId = null;
-            string latestSnapshotId = null;
+            string? latestReleaseId = null;
+            string? latestSnapshotId = null;
 
-            MVersionMetadata latestRelease = null;
-            MVersionMetadata latestSnapshot = null;
+            MVersionMetadata? latestRelease = null;
+            MVersionMetadata? latestSnapshot = null;
             
             var jobj = JObject.Parse(res);
             var jarr = jobj["versions"] as JArray;
@@ -44,16 +45,15 @@ namespace CmlLib.Core.VersionLoader
             bool checkLatestRelease = !string.IsNullOrEmpty(latestReleaseId);
             bool checkLatestSnapshot = !string.IsNullOrEmpty(latestSnapshotId);
 
-            var arr = new List<MVersionMetadata>(jarr?.Count ?? 0);
+            var arr = new List<WebVersionMetadata>(jarr?.Count ?? 0);
             if (jarr != null)
             {
                 foreach (var t in jarr)
                 {
-                    var obj = t.ToObject<MVersionMetadata>();
+                    var obj = t.ToObject<WebVersionMetadata>();
                     if (obj == null)
                         continue;
                     
-                    obj.IsLocalVersion = false;
                     obj.MType = MVersionTypeConverter.FromString(obj.Type);
                     arr.Add(obj);
 

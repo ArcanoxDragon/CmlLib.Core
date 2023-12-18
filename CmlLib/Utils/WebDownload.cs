@@ -7,14 +7,28 @@ using System.Threading.Tasks;
 
 namespace CmlLib.Utils
 {
-    public class WebDownload
+    internal class WebDownload
     {
+        public static bool IgnoreProxy { get; set; } = true;
+
+        public static int DefaultWebRequestTimeout { get; set; } = 20 * 1000;
+
         private class TimeoutWebClient : WebClient
         {
-            protected override WebRequest GetWebRequest(Uri uri)
+            protected override WebRequest? GetWebRequest(Uri uri)
             {
-                WebRequest w = base.GetWebRequest(uri);
-                w.Timeout = 20 * 1000;
+                WebRequest? w = base.GetWebRequest(uri);
+                if (w == null)
+                    return null;
+                
+                w.Timeout = DefaultWebRequestTimeout;
+
+                if (IgnoreProxy)
+                {
+                    w.Proxy = null;
+                    this.Proxy = null;
+                }
+
                 return w;
             }
         }
@@ -22,10 +36,10 @@ namespace CmlLib.Utils
         private static readonly int DefaultBufferSize = 1024 * 64; // 64kb
         private readonly object locker = new object();
         
-        public event EventHandler<FileDownloadProgress> FileDownloadProgressChanged;
-        public event ProgressChangedEventHandler DownloadProgressChangedEvent;
+        internal event EventHandler<DownloadFileProgress>? FileDownloadProgressChanged;
+        internal event ProgressChangedEventHandler? DownloadProgressChangedEvent;
 
-        public void DownloadFile(string url, string path)
+        internal void DownloadFile(string url, string path)
         {
             var req = WebRequest.CreateHttp(url); // Request
             var response = req.GetResponse();
@@ -52,7 +66,7 @@ namespace CmlLib.Utils
                 if (fireEvent)
                 {
                     processedBytes += length;
-                    ProgressChanged(processedBytes, filesize);
+                    progressChanged(processedBytes, filesize);
                 }
             }
 
@@ -60,9 +74,9 @@ namespace CmlLib.Utils
             fileStream.Dispose();
         }
 
-        public async Task DownloadFileAsync(DownloadFile file)
+        internal async Task DownloadFileAsync(DownloadFile file)
         {
-            string directoryName = Path.GetDirectoryName(file.Path);
+            string? directoryName = Path.GetDirectoryName(file.Path);
             if (!string.IsNullOrEmpty(directoryName))
                 Directory.CreateDirectory(directoryName);
             
@@ -80,7 +94,7 @@ namespace CmlLib.Utils
 
                         lastBytes = e.BytesReceived;
 
-                        var progress = new FileDownloadProgress(
+                        var progress = new DownloadFileProgress(
                             file, e.TotalBytesToReceive, progressedBytes, e.BytesReceived, e.ProgressPercentage);
                         FileDownloadProgressChanged?.Invoke(this, progress);
                     }
@@ -90,9 +104,9 @@ namespace CmlLib.Utils
             }
         }
 
-        public void DownloadFileLimit(string url, string path)
+        internal void DownloadFileLimit(string url, string path)
         {
-            string directoryName = Path.GetDirectoryName(path);
+            string? directoryName = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(directoryName))
                 Directory.CreateDirectory(directoryName);
 
@@ -103,14 +117,15 @@ namespace CmlLib.Utils
             req.ContinueTimeout = 5000;
             var res = req.GetResponse();
 
-            using (var httpStream = res.GetResponseStream())
-            using (var fs = File.OpenWrite(path))
-            {
-                httpStream?.CopyTo(fs);
-            }
+            using var httpStream = res.GetResponseStream();
+            if (httpStream == null)
+                return;
+            
+            using var fs = File.OpenWrite(path);
+            httpStream.CopyTo(fs);
         }
 
-        private void ProgressChanged(long value, long max)
+        private void progressChanged(long value, long max)
         {
             var percentage = (float)value / max * 100;
 

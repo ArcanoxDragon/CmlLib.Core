@@ -1,36 +1,50 @@
-﻿using CmlLib.Core.Files;
+﻿using CmlLib.Core.Downloader;
+using CmlLib.Core.Files;
 using System.Linq;
 
 namespace CmlLib.Core.Version
 {
     public class MVersion
     {
+        public MVersion(string id)
+        {
+            this.Id = id;
+        }
+        
         public bool IsInherited { get; set; }
-        public string ParentVersionId { get; set; }
+        public string? ParentVersionId { get; set; }
 
         public string Id { get; set; }
 
-        public string AssetId { get; set; } = "";
-        public string AssetUrl { get; set; } = "";
-        public string AssetHash { get; set; } = "";
+        public string? AssetId { get; set; }
+        public string? AssetUrl { get; set; }
+        public string? AssetHash { get; set; }
 
-        public string Jar { get; set; } = "";
-        public string ClientDownloadUrl { get; set; } = "";
-        public string ClientHash { get; set; } = "";
-        public MLibrary[] Libraries { get; set; }
-        public string MainClass { get; set; } = "";
-        public string MinecraftArguments { get; set; } = "";
-        public string[] GameArguments { get; set; }
-        public string[] JvmArguments { get; set; }
-        public string ReleaseTime { get; set; } = "";
+        public string? JavaVersion { get; set; }
+        public string? JavaBinaryPath { get; set; }
+        public string? Jar { get; set; }
+        public string? ClientDownloadUrl { get; set; }
+        public string? ClientHash { get; set; }
+        public MLibrary[]? Libraries { get; set; }
+        public string? MainClass { get; set; }
+        public string? MinecraftArguments { get; set; }
+        public string[]? GameArguments { get; set; }
+        public string[]? JvmArguments { get; set; }
+        public string? ReleaseTime { get; set; }
         public MVersionType Type { get; set; } = MVersionType.Custom;
-        public string TypeStr { get; set; } = "";
+        public string? TypeStr { get; set; }
+        public MLogConfiguration? LoggingClient { get; set; }
 
         public void InheritFrom(MVersion parentVersion)
         {
-            // Inherit list
-            // Overload : AssetId, AssetUrl, AssetHash, ClientDownloadUrl, ClientHash, MainClass, MinecraftArguments
-            // Combine : Libraries, GameArguments, JvmArguments
+            /*
+               Overload : 
+               AssetId, AssetUrl, AssetHash, ClientDownloadUrl,
+               ClientHash, MainClass, MinecraftArguments, JavaVersion
+               
+               Combine : 
+               Libraries, GameArguments, JvmArguments
+            */
 
             // Overloads
 
@@ -55,7 +69,12 @@ namespace CmlLib.Core.Version
             if (nc(MinecraftArguments))
                 MinecraftArguments = parentVersion.MinecraftArguments;
 
-            Jar = parentVersion.Jar;
+            if (nc(JavaVersion))
+                JavaVersion = parentVersion.JavaVersion;
+
+            if (LoggingClient == null)
+                LoggingClient = parentVersion.LoggingClient;
+            //Jar = parentVersion.Jar;
 
             // Combine
 
@@ -63,6 +82,7 @@ namespace CmlLib.Core.Version
             {
                 if (Libraries != null)
                     Libraries = Libraries.Concat(parentVersion.Libraries).ToArray();
+                    //Libraries = parentVersion.Libraries.Concat(Libraries).ToArray();
                 else
                     Libraries = parentVersion.Libraries;
             }
@@ -70,7 +90,8 @@ namespace CmlLib.Core.Version
             if (parentVersion.GameArguments != null)
             {
                 if (GameArguments != null)
-                    GameArguments = GameArguments.Concat(parentVersion.GameArguments).ToArray();
+                    //GameArguments = GameArguments.Concat(parentVersion.GameArguments).ToArray();
+                    GameArguments = parentVersion.GameArguments.Concat(GameArguments).ToArray();
                 else
                     GameArguments = parentVersion.GameArguments;
             }
@@ -78,13 +99,14 @@ namespace CmlLib.Core.Version
             if (parentVersion.JvmArguments != null)
             {
                 if (JvmArguments != null)
-                    JvmArguments = JvmArguments.Concat(parentVersion.JvmArguments).ToArray();
+                    //JvmArguments = JvmArguments.Concat(parentVersion.JvmArguments).ToArray();
+                    JvmArguments = parentVersion.JvmArguments.Concat(JvmArguments).ToArray();
                 else
                     JvmArguments = parentVersion.JvmArguments;
             }
         }
 
-        private static bool nc(string t) // check null string
+        private static bool nc(string? t) // check null string
         {
             return string.IsNullOrEmpty(t);
         }

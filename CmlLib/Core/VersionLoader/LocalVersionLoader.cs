@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using CmlLib.Core.VersionMetadata;
 
 namespace CmlLib.Core.VersionLoader
 {
@@ -22,12 +23,16 @@ namespace CmlLib.Core.VersionLoader
 
         public Task<MVersionCollection> GetVersionMetadatasAsync()
         {
-            return Task.Run(GetVersionMetadatas);
+            return Task.FromResult(GetVersionMetadatas());
         }
 
         private List<MVersionMetadata> getFromLocal(MinecraftPath path)
         {
-            var dirs = new DirectoryInfo(path.Versions).GetDirectories();
+            var versionDirectory = new DirectoryInfo(path.Versions);
+            if (!versionDirectory.Exists)
+                return new List<MVersionMetadata>();
+            
+            var dirs = versionDirectory.GetDirectories();
             var arr = new List<MVersionMetadata>(dirs.Length);
 
             for (int i = 0; i < dirs.Length; i++)
@@ -36,9 +41,7 @@ namespace CmlLib.Core.VersionLoader
                 var filepath = Path.Combine(dir.FullName, dir.Name + ".json");
                 if (File.Exists(filepath))
                 {
-                    var info = new MVersionMetadata();
-                    info.IsLocalVersion = true;
-                    info.Name = dir.Name;
+                    var info = new LocalVersionMetadata(dir.Name);
                     info.Path = filepath;
                     info.Type = "local";
                     info.MType = MVersionType.Custom;

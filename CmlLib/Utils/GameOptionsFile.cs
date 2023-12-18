@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -23,25 +24,25 @@ namespace CmlLib.Utils
             if (fileinfo.Length > MaxOptionFileLength)
                 throw new IOException("File is too big");
 
-            var options = new Dictionary<string, string>();
+            var optionDict = new Dictionary<string, string?>();
 
             using (var fs = fileinfo.OpenRead())
             using (var reader = new StreamReader(fs, encoding))
             {
-                string line;
+                string? line;
                 while ((line = reader.ReadLine()) != null)
                 {
                     if (!line.Contains(":"))
-                        options[line] = null;
+                        optionDict[line] = null;
                     else
                     {
                         var keyvalue = FromKeyValueString(line);
-                        options[keyvalue.Key] = keyvalue.Value;
+                        optionDict[keyvalue.Key] = keyvalue.Value;
                     }
                 }
             }
 
-            return new GameOptionsFile(options, filepath);
+            return new GameOptionsFile(optionDict, filepath);
         }
         
         public static KeyValuePair<string, string> FromKeyValueString(string keyvalue)
@@ -55,11 +56,21 @@ namespace CmlLib.Utils
             return new KeyValuePair<string, string>(key, value);
         }
 
-        public string this[string key] => GetRawValue(key);
-        public string FilePath { get; private set; }
-        private readonly Dictionary<string, string> options;
+        public string? this[string key] => GetRawValue(key);
+        public string? FilePath { get; private set; }
+        private readonly Dictionary<string, string?> options;
 
-        private GameOptionsFile(Dictionary<string, string> options, string path)
+        public GameOptionsFile()
+        {
+            this.options = new Dictionary<string, string?>();
+        }
+        
+        public GameOptionsFile(Dictionary<string, string?> options)
+        {
+            this.options = options;
+        }
+        
+        public GameOptionsFile(Dictionary<string, string?> options, string path)
         {
             this.options = options;
             this.FilePath = path;
@@ -70,20 +81,25 @@ namespace CmlLib.Utils
             return options.ContainsKey(key);
         }
 
-        public string GetRawValue(string key)
+        public string? GetRawValue(string key)
         {
             return options[key];
         }
 
-        public string GetValueAsString(string key)
+        public string? GetValueAsString(string key)
         {
-            string value = GetRawValue(key);
+            string? value = GetRawValue(key);
+            if (value == null)
+                return null;
             return value.Trim().Trim('\"');
         }
 
-        public string[] GetValueAsArray(string key)
+        public string[]? GetValueAsArray(string key)
         {
-            string value = GetRawValue(key);
+            string? value = GetRawValue(key);
+            if (value == null)
+                return null;
+            
             return value
                 .Trim()
                 .TrimStart('[')
@@ -95,19 +111,28 @@ namespace CmlLib.Utils
 
         public int GetValueAsInt(string key)
         {
-            string value = GetRawValue(key);
+            string? value = GetRawValue(key);
+            if (value == null)
+                return 0;
+            
             return int.Parse(value);
         }
 
         public double GetValueAsDouble(string key)
         {
-            string value = GetRawValue(key);
+            string? value = GetRawValue(key);
+            if (value == null)
+                return 0;
+            
             return double.Parse(value);
         }
 
         public bool GetValueAsBool(string key)
         {
-            string value = GetRawValue(key);
+            string? value = GetRawValue(key);
+            if (value == null)
+                return false;
+             
             return bool.Parse(value);
         }
 
@@ -144,21 +169,31 @@ namespace CmlLib.Utils
 
         public void SetValue(string key, object obj)
         {
-            SetValue(key, obj.ToString());
+            var str = obj.ToString();
+            if (str == null)
+                return;
+            SetValue(key, str);
         }
 
         public void Save()
         {
+            if (string.IsNullOrEmpty(FilePath))
+                throw new InvalidOperationException("FilePath was null");
+            
             Save(FilePath);
         }
 
         public void Save(string path)
         {
-            Save(path, Encoding.UTF8);
+            // IMPORTANT: UTF8 with BOM could not be recognized by minecraft
+            Save(path, new UTF8Encoding(false));
         }
 
         public void Save(Encoding encoding)
         {
+            if (string.IsNullOrEmpty(FilePath))
+                throw new InvalidOperationException("FilePath was null");
+            
             Save(FilePath, encoding);
         }
 
@@ -167,7 +202,7 @@ namespace CmlLib.Utils
             using (var fs = File.OpenWrite(path))
             using (var writer = new StreamWriter(fs, encoding))
             {
-                foreach (KeyValuePair<string, string> keyvalue in options)
+                foreach (KeyValuePair<string, string?> keyvalue in options)
                 {
                     if (keyvalue.Value == null)
                         writer.WriteLine(keyvalue.Key);

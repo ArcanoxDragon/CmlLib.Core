@@ -25,7 +25,8 @@ namespace CmlLib.Core
 
         private static string getOSName()
         {
-#if NET462
+            // RuntimeInformation does not work in .NET Framework
+#if NETFRAMEWORK
             var osType = Environment.OSVersion.Platform;
 
             if (osType == PlatformID.MacOSX)
@@ -62,7 +63,7 @@ namespace CmlLib.Core
                     if (item.Key == "action")
                         action = (item.Value?.ToString() == "allow");
                     else if (item.Key == "os")
-                        containCurrentOS = checkOSContains((JObject)item.Value);
+                        containCurrentOS = checkOSContains(item.Value as JObject);
                     else if (item.Key == "features") // etc
                         return false;
                 }
@@ -78,8 +79,11 @@ namespace CmlLib.Core
             return require;
         }
 
-        private static bool checkOSContains(JObject job)
+        private static bool checkOSContains(JObject? job)
         {
+            if (job == null)
+                return false;
+            
             foreach (var os in job)
             {
                 if (os.Key == "name" && os.Value?.ToString() == OSName)

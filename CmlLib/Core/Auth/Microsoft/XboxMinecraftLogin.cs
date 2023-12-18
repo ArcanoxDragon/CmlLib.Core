@@ -12,20 +12,18 @@ namespace CmlLib.Core.Auth.Microsoft
 
         private void writeReq(WebRequest req, string data)
         {
-            using (var reqStream = req.GetRequestStream())
-            using (var sw = new StreamWriter(reqStream))
-            {
-                sw.Write(data);
-            }
+            using var reqStream = req.GetRequestStream();
+            using var sw = new StreamWriter(reqStream);
+            sw.Write(data);
         }
 
         private string readRes(WebResponse res)
         {
-            using (var resStream = res.GetResponseStream())
-            using (var sr = new StreamReader(resStream))
-            {
-                return sr.ReadToEnd();
-            }
+            using var resStream = res.GetResponseStream();
+            if (resStream == null)
+                return "";
+            using var sr = new StreamReader(resStream);
+            return sr.ReadToEnd();
         }
 
         // login_with_xbox
@@ -42,7 +40,8 @@ namespace CmlLib.Core.Auth.Microsoft
             var res = req.GetResponse();
             var resBody = readRes(res);
 
-            var obj = JsonConvert.DeserializeObject<AuthenticationResponse>(resBody);
+            var obj = JsonConvert.DeserializeObject<AuthenticationResponse>(resBody)
+                ?? new AuthenticationResponse();
             obj.ExpiresOn = DateTime.Now.AddSeconds(obj.ExpiresIn);
             return obj;
         }

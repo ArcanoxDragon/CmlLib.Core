@@ -6,10 +6,12 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using CmlLib.Core.Downloader;
+using CmlLib.Core.Version;
 
 namespace CmlLibWinFormSample
 {
@@ -17,36 +19,30 @@ namespace CmlLibWinFormSample
     {
         public MainForm(MSession session)
         {
-            this.Session = session;
+            this.session = session;
             InitializeComponent();
         }
 
         CMLauncher launcher;
-        readonly MSession Session;
-        MinecraftPath GamePath;
-
-        bool useMJava = true;
-        string javaPath = "java.exe";
-        
-        GameLog logForm;
+        readonly MSession session;
+        MinecraftPath gamePath; 
+        string javaPath;
 
         private async void MainForm_Shown(object sender, EventArgs e)
         {
+            lbLibraryVersion.Text = "CmlLib.Core " + getLibraryVersion();
+            
             // Initialize launcher
-            this.Refresh();
-
             var defaultPath = new MinecraftPath(MinecraftPath.GetOSDefaultPath());
-            await InitializeLauncher(defaultPath);
+            await initializeLauncher(defaultPath);
         }
 
-        private async Task InitializeLauncher(MinecraftPath path)
+        private async Task initializeLauncher(MinecraftPath path)
         {
+            lbUsername.Text = session.Username;
             txtPath.Text = path.BasePath;
-            this.GamePath = path;
-
-            if (useMJava)
-                lbJavaPath.Text = path.Runtime;
-
+            this.gamePath = path;
+            
             launcher = new CMLauncher(path);
             launcher.FileChanged += Launcher_FileChanged;
             launcher.ProgressChanged += Launcher_ProgressChanged;
@@ -80,13 +76,20 @@ namespace CmlLibWinFormSample
 
         private void btnSetLastVersion_Click(object sender, EventArgs e)
         {
-            cbVersion.Text = launcher.Versions.LatestReleaseVersion?.Name;
+            cbVersion.Text = launcher.Versions?.LatestReleaseVersion?.Name;
+        }
+        
+        private void btnSortFilter_Click(object sender, EventArgs e)
+        {
+            var form = new VersionSortOptionForm(launcher, new MVersionSortOption());
+            form.ShowDialog();
+            
         }
 
         // Start Game
         private async void Btn_Launch_Click(object sender, EventArgs e)
         {
-            if (Session == null)
+            if (session == null)
             {
                 MessageBox.Show("Login First");
                 return;
@@ -107,7 +110,7 @@ namespace CmlLibWinFormSample
                 var launchOption = new MLaunchOption()
                 {
                     MaximumRamMb = int.Parse(TxtXmx.Text),
-                    Session = this.Session,
+                    Session = this.session,
 
                     VersionType = Txt_VersionType.Text,
                     GameLauncherName = Txt_GLauncherName.Text,
@@ -121,9 +124,9 @@ namespace CmlLibWinFormSample
                     DockIcon = Txt_DockIcon.Text
                 };
 
-                if (!useMJava)
+                if (!string.IsNullOrEmpty(javaPath))
                     launchOption.JavaPath = javaPath;
-
+                
                 if (!string.IsNullOrEmpty(txtXms.Text))
                     launchOption.MinimumRamMb = int.Parse(txtXms.Text);
 
@@ -147,18 +150,26 @@ namespace CmlLibWinFormSample
                 else
                     launcher.FileDownloader = new SequenceDownloader();
 
-                // check file hash or don't check
-                launcher.GameFileCheckers.AssetFileChecker.CheckHash = cbSkipHashCheck.Checked;
-                launcher.GameFileCheckers.ClientFileChecker.CheckHash = cbSkipHashCheck.Checked;
-                launcher.GameFileCheckers.LibraryFileChecker.CheckHash = cbSkipHashCheck.Checked;
-
                 if (cbSkipAssetsDownload.Checked)
                     launcher.GameFileCheckers.AssetFileChecker = null;
+                else if (launcher.GameFileCheckers.AssetFileChecker == null)
+                    launcher.GameFileCheckers.AssetFileChecker = new AssetChecker();
+                
+                // check file hash or don't check
+                if (launcher.GameFileCheckers.AssetFileChecker != null)
+                    launcher.GameFileCheckers.AssetFileChecker.CheckHash = !cbSkipHashCheck.Checked;
+                if (launcher.GameFileCheckers.ClientFileChecker != null)
+                    launcher.GameFileCheckers.ClientFileChecker.CheckHash = !cbSkipHashCheck.Checked;
+                if (launcher.GameFileCheckers.LibraryFileChecker != null)
+                    launcher.GameFileCheckers.LibraryFileChecker.CheckHash = !cbSkipHashCheck.Checked;
 
                 var process = await launcher.CreateProcessAsync(cbVersion.Text, launchOption); // Create Arguments and Process
 
                 // process.Start(); // Just start game, or
                 StartProcess(process); // Start Process with debug options
+
+                var gameLog = new GameLog(process);
+                gameLog.Show();
             }
             catch (FormatException fex) // int.Parse exception
             {
@@ -183,13 +194,6 @@ namespace CmlLibWinFormSample
             }
             finally
             {
-                // re open log form
-                if (logForm != null)
-                    logForm.Close();
-
-                logForm = new GameLog();
-                logForm.Show();
-
                 // enable ui
                 setUIEnabled(true);
             }
@@ -222,24 +226,21 @@ namespace CmlLibWinFormSample
 
         private async void btnChangePath_Click(object sender, EventArgs e)
         {
-            var form = new PathForm(this.GamePath);
+            var form = new PathForm(this.gamePath);
             form.ShowDialog();
-            await InitializeLauncher(form.MinecraftPath);
+            await initializeLauncher(form.MinecraftPath);
         }
 
         private void btnChangeJava_Click(object sender, EventArgs e)
         {
-            var form = new JavaForm(useMJava, this.GamePath.Runtime, javaPath);
+            var form = new JavaForm(javaPath);
             form.ShowDialog();
-
-            useMJava = form.UseMJava;
-            this.GamePath.Runtime = form.MJavaDirectory;
             javaPath = form.JavaBinaryPath;
-
-            if (useMJava)
-                lbJavaPath.Text = form.MJavaDirectory;
+            
+            if (string.IsNullOrEmpty(javaPath))
+                lbJavaPath.Text = "Use default java";
             else
-                lbJavaPath.Text = form.JavaBinaryPath;
+                lbJavaPath.Text = javaPath;
         }
 
         private void btnAutoRamSet_Click(object sender, EventArgs e)
@@ -278,19 +279,13 @@ namespace CmlLibWinFormSample
             new Thread(() =>
             {
                 var forgeJava = "";
-
-                if (useMJava)
-                {
-                    var java = new MJava();
-                    java.ProgressChanged += Launcher_ProgressChanged;
-                    forgeJava = java.CheckJava();
-                }
-                else
-                    forgeJava = javaPath;
+                var java = new MJava();
+                java.ProgressChanged += Launcher_ProgressChanged;
+                forgeJava = java.CheckJava();
 
                 Invoke(new Action(async () =>
                 {
-                    var forgeForm = new ForgeInstall(GamePath, forgeJava);
+                    var forgeForm = new ForgeInstall(gamePath, forgeJava);
                     forgeForm.ShowDialog();
                     setUIEnabled(true);
                     await refreshVersions(forgeForm.LastInstalledVersion);
@@ -301,35 +296,19 @@ namespace CmlLibWinFormSample
         private void StartProcess(Process process)
         {
             File.WriteAllText("launcher.txt", process.StartInfo.Arguments);
-            output(process.StartInfo.Arguments);
-
+            
             // process options to display game log
 
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.RedirectStandardError = true;
             process.StartInfo.RedirectStandardOutput = true;
+            process.StartInfo.StandardErrorEncoding = System.Text.Encoding.UTF8;
+            process.StartInfo.StandardOutputEncoding = System.Text.Encoding.UTF8;
             process.EnableRaisingEvents = true;
-            process.ErrorDataReceived += Process_ErrorDataReceived;
-            process.OutputDataReceived += Process_OutputDataReceived;
 
             process.Start();
             process.BeginErrorReadLine();
             process.BeginOutputReadLine();
-        }
-
-        private void Process_OutputDataReceived(object sender, DataReceivedEventArgs e)
-        {
-            output(e.Data);
-        }
-
-        private void Process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
-        {
-            output(e.Data);
-        }
-
-        void output(string msg)
-        {
-            GameLog.AddLog(msg);
         }
 
         private void btnChangelog_Click(object sender, EventArgs e)
@@ -349,7 +328,7 @@ namespace CmlLibWinFormSample
         private void btnOptions_Click(object sender, EventArgs e)
         {
             // options.txt
-            var path = System.IO.Path.Combine(GamePath.BasePath, "options.txt");
+            var path = System.IO.Path.Combine(gamePath.BasePath, "options.txt");
             var f = new GameOptions(path);
             f.Show();
         }
@@ -373,6 +352,19 @@ namespace CmlLibWinFormSample
             catch (Exception ex)
             {
                 MessageBox.Show(ex.ToString());
+            }
+        }
+
+        private string getLibraryVersion()
+        {
+            try
+            {
+                return Assembly.GetAssembly(typeof(CMLauncher)).GetName().Version.ToString();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                return null;
             }
         }
     }

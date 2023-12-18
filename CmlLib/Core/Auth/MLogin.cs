@@ -48,7 +48,9 @@ namespace CmlLib.Core.Auth
         private void WriteSessionCache(MSession session)
         {
             if (!SaveSession) return;
-            Directory.CreateDirectory(Path.GetDirectoryName(SessionCacheFilePath));
+            var directoryPath = Path.GetDirectoryName(SessionCacheFilePath);
+            if (!string.IsNullOrEmpty(directoryPath))
+                Directory.CreateDirectory(directoryPath);
 
             var json = JsonConvert.SerializeObject(session);
             File.WriteAllText(SessionCacheFilePath, json, Encoding.UTF8);
@@ -90,7 +92,7 @@ namespace CmlLib.Core.Auth
 			return await http.PostAsync( MojangServer.Auth + endpoint, content, cancellationToken );
         }
 
-        private MLoginResponse parseSession(string json, string clientToken)
+        private MLoginResponse parseSession(string json, string? clientToken)
         {
             var job = JObject.Parse(json); //json parse
 
@@ -104,6 +106,7 @@ namespace CmlLib.Core.Auth
                     AccessToken = job["accessToken"]?.ToString(),
                     UUID = profile["id"]?.ToString(),
                     Username = profile["name"]?.ToString(),
+                    UserType = "Mojang",
                     ClientToken = clientToken
                 };
 
@@ -118,8 +121,8 @@ namespace CmlLib.Core.Auth
             {
                 var job = JObject.Parse(json);
 
-                var error = job["error"]?.ToString(); // error type
-                var errormsg = job["message"]?.ToString() ?? ""; // detail error message
+                var error = job["error"]?.ToString() ?? ""; // error type
+                var errorMessage = job["message"]?.ToString() ?? ""; // detail error message
                 MLoginResult result;
 
                 switch (error)
@@ -138,7 +141,7 @@ namespace CmlLib.Core.Auth
                         break;
                 }
 
-                return new MLoginResponse(result, null, errormsg, json);
+                return new MLoginResponse(result, null, errorMessage, json);
             }
             catch (Exception ex)
             {
@@ -152,7 +155,7 @@ namespace CmlLib.Core.Auth
             return AuthenticateAsync(id, pw, clientToken, cancellationToken);
         }
 
-        public async Task<MLoginResponse> AuthenticateAsync(string id, string pw, string clientToken, CancellationToken cancellationToken = default)
+        public async Task<MLoginResponse> AuthenticateAsync(string id, string pw, string? clientToken, CancellationToken cancellationToken = default)
         {
             var req = new JObject
             {
@@ -202,16 +205,22 @@ namespace CmlLib.Core.Auth
         public async Task<MLoginResponse> TryAutoLoginFromMojangLauncherAsync(CancellationToken cancellationToken = default)
         {
             var mojangAccounts = MojangLauncher.MojangLauncherAccounts.FromDefaultPath();
-            var activeAccount = mojangAccounts.GetActiveAccount();
+            var activeAccount = mojangAccounts?.GetActiveAccount();
 
+            if (activeAccount == null)
+                return new MLoginResponse(MLoginResult.NeedLogin, null, null, null);
+            
             return await TryAutoLoginAsync(activeAccount.ToSession(), cancellationToken);
         }
 
         public async Task<MLoginResponse> TryAutoLoginFromMojangLauncherAsync(string accountFilePath, CancellationToken cancellationToken = default)
         {
             var mojangAccounts = MojangLauncher.MojangLauncherAccounts.FromFile(accountFilePath);
-            var activeAccount = mojangAccounts.GetActiveAccount();
+            var activeAccount = mojangAccounts?.GetActiveAccount();
 
+            if (activeAccount == null)
+                return new MLoginResponse(MLoginResult.NeedLogin, null, null, null);
+            
             return await TryAutoLoginAsync(activeAccount.ToSession(), cancellationToken);
         }
 
@@ -307,7 +316,7 @@ namespace CmlLib.Core.Auth
         }
     }
 
-    public static class HttpWebResponseExt
+    internal static class HttpWebResponseExt
     {
         public static HttpWebResponse GetResponseNoException(this HttpWebRequest req)
         {

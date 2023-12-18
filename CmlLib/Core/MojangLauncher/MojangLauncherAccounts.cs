@@ -7,23 +7,25 @@ namespace CmlLib.Core.MojangLauncher
     public class MojangLauncherAccounts
     {
         [JsonProperty("accounts")]
-        public Dictionary<string, MojangAccount> Accounts { get; set; }
+        public Dictionary<string, MojangAccount?>? Accounts { get; set; }
 
         [JsonProperty("ActiveAccountLocalId")]
-        public string ActiveAccountLocalId { get; set; }
+        public string? ActiveAccountLocalId { get; set; }
 
         [JsonProperty("mojangClientToken")]
-        public string MojangClientToken { get; set; }
+        public string? MojangClientToken { get; set; }
 
-        public MojangAccount GetActiveAccount()
+        public MojangAccount? GetActiveAccount()
         {
-            MojangAccount value;
-            var result = Accounts.TryGetValue(ActiveAccountLocalId, out value);
-
-            if (result)
-                return value;
-            else
+            if (string.IsNullOrEmpty(ActiveAccountLocalId))
                 return null;
+
+            MojangAccount? value = null;
+            var result = Accounts?.TryGetValue(ActiveAccountLocalId, out value);
+            if (result == null || result == false)
+                return null;
+
+            return value;
         }
 
         public void SaveTo(string path)
@@ -35,19 +37,19 @@ namespace CmlLib.Core.MojangLauncher
             File.WriteAllText(path, json);
         }
 
-        public static MojangLauncherAccounts FromDefaultPath()
+        public static MojangLauncherAccounts? FromDefaultPath()
         {
             var path = Path.Combine(MinecraftPath.GetOSDefaultPath(), "launcher_accounts.json");
             return FromFile(path);
         }
 
-        public static MojangLauncherAccounts FromFile(string path)
+        public static MojangLauncherAccounts? FromFile(string path)
         {
             var content = File.ReadAllText(path);
-            return FromJSON(content);
+            return FromJson(content);
         }
 
-        public static MojangLauncherAccounts FromJSON(string json)
+        public static MojangLauncherAccounts? FromJson(string json)
         {
             return JsonConvert.DeserializeObject<MojangLauncherAccounts>(json);
         }

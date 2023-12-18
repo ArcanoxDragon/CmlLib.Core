@@ -14,6 +14,15 @@ namespace CmlLib.Utils
             { "1.14.2", "https://feedback.minecraft.net/hc/en-us/articles/360028919851-Minecraft-Java-Edition-1-14-2" },
             { "1.14.3", "https://feedback.minecraft.net/hc/en-us/articles/360030771451-Minecraft-Java-Edition-1-14-3" },
             { "1.14.4", "https://feedback.minecraft.net/hc/en-us/articles/360030780172-Minecraft-Java-Edition-1-14-4" },
+            { "1.15", "https://feedback.minecraft.net/hc/en-us/articles/360037384972-Minecraft-Java-Edition-Buzzy-Bees" },
+            { "1.15.1", "https://feedback.minecraft.net/hc/en-us/articles/360038054332-Minecraft-Java-Edition-1-15-1" },
+            { "1.15.2", "https://feedback.minecraft.net/hc/en-us/articles/360038800232-Minecraft-Java-Edition-1-15-2" },
+            { "1.16", "https://feedback.minecraft.net/hc/en-us/articles/360044911972-Minecraft-Java-Edition-Nether-Release" },
+            { "1.16.5", "https://feedback.minecraft.net/hc/en-us/articles/360055096392-Minecraft-Java-Edition-1-16-5" },
+            { "1.17", "https://feedback.minecraft.net/hc/en-us/articles/4402626897165-Minecraft-Caves-Cliffs-Part-1-1-17-Java" },
+            { "1.17.1", "https://feedback.minecraft.net/hc/en-us/articles/4404449719949-Minecraft-Java-Edition-1-17-1" },
+            { "1.18", "https://feedback.minecraft.net/hc/en-us/articles/4415128577293-Minecraft-Java-Edition-1-18" },
+            { "1.18.1", "https://feedback.minecraft.net/hc/en-us/articles/4416161161101-Minecraft-Java-Edition-1-18-1" },
         };
         
         public static async Task<Changelogs> GetChangelogs()
@@ -28,31 +37,30 @@ namespace CmlLib.Utils
             }
 
             var obj = JObject.Parse(response);
-            var versions = new Dictionary<string, string>();
-            var array = obj?["entries"] as JArray;
+            var versionDict = new Dictionary<string, string?>();
+            var array = obj["entries"] as JArray;
             if (array != null)
             {
                 foreach (var item in array)
                 {
                     var version = item["version"]?.ToString();
-                    var body = item["body"]?.ToString();
-
                     if (string.IsNullOrEmpty(version))
                         continue;
-
-                    versions[version] = body;
+                    
+                    var body = item["body"]?.ToString();
+                    versionDict[version] = body;
                 }
             }
 
-            return new Changelogs(versions);
+            return new Changelogs(versionDict);
         }
         
-        private Changelogs(Dictionary<string, string> versions)
+        private Changelogs(Dictionary<string, string?> versions)
         {
             this.versions = versions;
         }
 
-        private readonly Dictionary<string, string> versions;
+        private readonly Dictionary<string, string?> versions;
 
         public string[] GetAvailableVersions()
         {
@@ -68,11 +76,11 @@ namespace CmlLib.Utils
             return list.ToArray();
         }
 
-        public async Task<string> GetChangelogHtml(string version)
+        public async Task<string?> GetChangelogHtml(string version)
         {
-            if (versions.TryGetValue(version, out string body))
+            if (versions.TryGetValue(version, out string? body))
                 return body;
-            if (changelogUrls.TryGetValue(version, out string url))
+            if (changelogUrls.TryGetValue(version, out string? url))
                 return await GetChangelogFromUrl(url).ConfigureAwait(false);
 
             return null;
@@ -83,7 +91,7 @@ namespace CmlLib.Utils
 
         private async Task<string> GetChangelogFromUrl(string url)
         {
-            string html = "";
+            string html;
             using (var wc = new WebClient())
             {
                 var data = await wc.DownloadDataTaskAsync(url).ConfigureAwait(false);

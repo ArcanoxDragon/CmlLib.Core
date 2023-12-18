@@ -16,12 +16,18 @@ namespace CmlLib.Utils
 
 			// Read the decoder properties
 			var properties = new byte[5];
-			input.Read(properties, 0, 5);
+            var readCount = input.Read(properties, 0, 5);
 
+            if (readCount < 5)
+                return;
+            
 			// Read in the decompress file size.
 			var fileLengthBytes = new byte[8];
-			input.Read(fileLengthBytes, 0, 8);
+            readCount = input.Read(fileLengthBytes, 0, 8);
 
+            if (readCount < 8)
+                return;
+            
 			var fileLength = BitConverter.ToInt64(fileLengthBytes, 0);
 
 			decoder.SetDecoderProperties(properties);
@@ -39,11 +45,17 @@ namespace CmlLib.Utils
 
 			// Read the decoder properties
 			var properties = new byte[5];
-			await input.ReadAsync(properties, 0, 5, cancellationToken);
+			var readCount = await input.ReadAsync(properties, 0, 5, cancellationToken);
+
+            if (readCount < 5)
+                return;
 
 			// Read in the decompress file size.
 			var fileLengthBytes = new byte[8];
-			await input.ReadAsync(fileLengthBytes, 0, 8, cancellationToken);
+			readCount = await input.ReadAsync(fileLengthBytes, 0, 8, cancellationToken);
+
+            if (readCount < 8)
+                return;
 
 			var fileLength = BitConverter.ToInt64(fileLengthBytes, 0);
 

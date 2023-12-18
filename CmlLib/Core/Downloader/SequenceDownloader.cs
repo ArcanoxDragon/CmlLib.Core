@@ -9,13 +9,13 @@ namespace CmlLib.Core.Downloader
     public class SequenceDownloader : IDownloader
     {
         public bool IgnoreInvalidFiles { get; set; } = true;
-        private IProgress<ProgressChangedEventArgs> pChangeProgress;
+        private IProgress<ProgressChangedEventArgs>? pChangeProgress;
 
         public async Task DownloadFiles(DownloadFile[] files, 
-            IProgress<DownloadFileChangedEventArgs> fileProgress,
-            IProgress<ProgressChangedEventArgs> downloadProgress)
+            IProgress<DownloadFileChangedEventArgs>? fileProgress,
+            IProgress<ProgressChangedEventArgs>? downloadProgress)
         {
-            if (files == null || files.Length == 0)
+            if (files.Length == 0)
                 return;
 
             pChangeProgress = downloadProgress;
@@ -23,7 +23,8 @@ namespace CmlLib.Core.Downloader
             WebDownload downloader = new WebDownload();
             downloader.FileDownloadProgressChanged += Downloader_FileDownloadProgressChanged;
 
-            //fireDownloadFileChangedEvent(null, 0, files.Length);
+            fileProgress?.Report(
+                new DownloadFileChangedEventArgs(files[0].Type, this, null, files.Length, 0));
 
             for (int i = 0; i < files.Length; i++)
             {
@@ -31,7 +32,10 @@ namespace CmlLib.Core.Downloader
 
                 try
                 {
-                    Directory.CreateDirectory(Path.GetDirectoryName(file.Path));
+                    var directoryPath = Path.GetDirectoryName(file.Path);
+                    if (!string.IsNullOrEmpty(directoryPath))
+                        Directory.CreateDirectory(directoryPath);
+                    
                     await downloader.DownloadFileAsync(file).ConfigureAwait(false);
 
                     if (file.AfterDownload != null)
@@ -43,7 +47,7 @@ namespace CmlLib.Core.Downloader
                     }
                     
                     fileProgress?.Report(
-                        new DownloadFileChangedEventArgs(file.Type, file.Name, files.Length, i));
+                        new DownloadFileChangedEventArgs(file.Type, this, file.Name, files.Length, i));
                 }
                 catch (Exception ex)
                 {
@@ -55,7 +59,7 @@ namespace CmlLib.Core.Downloader
             }
         }
 
-        private void Downloader_FileDownloadProgressChanged(object sender, FileDownloadProgress e)
+        private void Downloader_FileDownloadProgressChanged(object? sender, DownloadFileProgress e)
         {
             pChangeProgress?.Report(new ProgressChangedEventArgs(e.ProgressPercentage, null));
         }

@@ -3,6 +3,7 @@ using CmlLib.Core.Auth;
 using CmlLib.Core.Downloader;
 using System;
 using System.Threading.Tasks;
+using CmlLib.Core.VersionLoader;
 
 namespace CmlLibCoreSample
 {
@@ -18,8 +19,8 @@ namespace CmlLibCoreSample
 
             // There are two login methods, one is using mojang email and password, and the other is using only username
             // Choose one which you want.
-            //session = await p.PremiumLogin(); // Login by mojang email and password
-            session = p.OfflineLogin(); // Login by username
+            session = await p.PremiumLogin(); // Login by mojang email and password
+            //session = p.OfflineLogin(); // Login by username
 
             // log login session information
             Console.WriteLine("Success to login : {0} / {1} / {2}", session.Username, session.UUID, session.AccessToken);
@@ -88,6 +89,10 @@ namespace CmlLibCoreSample
             // if you want to download with parallel downloader, add below code :
             System.Net.ServicePointManager.DefaultConnectionLimit = 256;
 
+            // for offline mode
+            //launcher.VersionLoader = new LocalVersionLoader(launcher.MinecraftPath);
+            //launcher.FileDownloader = null;
+            
             launcher.ProgressChanged += Downloader_ChangeProgress;
             launcher.FileChanged += Downloader_ChangeFile;
 
@@ -129,6 +134,7 @@ namespace CmlLibCoreSample
             var process = launcher.CreateProcess(Console.ReadLine(), launchOption);
 
             //var process = launcher.CreateProcess("1.16.2", "33.0.5", launchOption);
+            Console.WriteLine(process.StartInfo.FileName);
             Console.WriteLine(process.StartInfo.Arguments);
 
             // Below codes are print game logs in Console.

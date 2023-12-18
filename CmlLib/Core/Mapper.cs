@@ -7,31 +7,31 @@ namespace CmlLib.Core
 {
     public static class Mapper
     {
-        private static Regex argBracket = new Regex(@"\$?\{(.*?)}");
+        private static readonly Regex argBracket = new Regex(@"\$?\{(.*?)}");
 
-        public static string[] Map(string[] arg, Dictionary<string, string> dicts, string prepath)
+        public static string[] Map(string[] arg, Dictionary<string, string?> dicts, string prepath)
         {
             var checkPath = !string.IsNullOrEmpty(prepath);
 
             var args = new List<string>(arg.Length);
             foreach (string item in arg)
             {
-                var a = Interpolation(item, dicts);
+                var a = Interpolation(item, dicts, false);
                 if (checkPath)
                     a = ToFullPath(a, prepath);
-                args.Add(handleEArg(a));
+                args.Add(HandleEmptyArg(a));
             }
 
             return args.ToArray();
         }
 
-        public static string[] MapInterpolation(string[] arg, Dictionary<string, string> dicts)
+        public static string[] MapInterpolation(string[] arg, Dictionary<string, string?> dicts)
         {
             var args = new List<string>(arg.Length);
             foreach (string item in arg)
             {
-                var a = Interpolation(item, dicts);
-                args.Add(handleEArg(a));
+                var a = Interpolation(item, dicts, true);
+                args.Add(a);
             }
 
             return args.ToArray();
@@ -43,35 +43,35 @@ namespace CmlLib.Core
             foreach (string item in arg)
             {
                 var a = ToFullPath(item, prepath);
-                args.Add(handleEArg(a));
+                args.Add(HandleEmptyArg(a));
             }
 
             return args.ToArray();
         }
 
-        public static string Interpolation(string str, Dictionary<string, string> dicts)
+        public static string Interpolation(string str, Dictionary<string, string?> dicts, bool handleEmpty)
         {
-            var sb = new StringBuilder(str);
-
-            var offset = 0;
-            var m = argBracket.Matches(str);
-            foreach (Match item in m)
+            str = argBracket.Replace(str, (match =>
             {
-                var outGroup = item.Groups[0];
+                if (match.Groups.Count < 2)
+                    return match.Value;
 
-                string key = item.Groups[1].Value;
-                string value;
-
-                if (dicts.TryGetValue(key, out value))
+                var key = match.Groups[1].Value;
+                if (dicts.TryGetValue(key, out string? value))
                 {
-                    replaceByPos(sb, value, outGroup.Index + offset, outGroup.Length);
+                    if (value == null)
+                        value = "";
 
-                    if (outGroup.Length != value.Length)
-                        offset = value.Length - outGroup.Length;
+                    return value;
                 }
-            }
 
-            return sb.ToString();
+                return match.Value;
+            }));
+
+            if (handleEmpty)
+                return HandleEmptyArg(str);
+            else
+                return str;
         }
 
         public static string ToFullPath(string str, string prepath)
@@ -117,7 +117,7 @@ namespace CmlLib.Core
         // key="va  l" => key="va  l"
         // va lue => "va lue"
         // "va lue" => "va lue"
-        static string handleEArg(string input)
+        public static string HandleEmptyArg(string input)
         {
             if (input.Contains("="))
             {

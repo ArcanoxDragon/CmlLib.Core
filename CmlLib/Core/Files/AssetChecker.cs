@@ -4,6 +4,7 @@ using CmlLib.Utils;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -27,20 +28,20 @@ namespace CmlLib.Core.Files
         }
         public bool CheckHash { get; set; } = true;
 
-        public DownloadFile[] CheckFiles(MinecraftPath path, MVersion version, 
-            IProgress<DownloadFileChangedEventArgs> progress)
+        public DownloadFile[]? CheckFiles(MinecraftPath path, MVersion version, 
+            IProgress<DownloadFileChangedEventArgs>? progress)
         {
             return checkIndexAndAsset(path, version, progress);
         }
 
-        public Task<DownloadFile[]> CheckFilesTaskAsync(MinecraftPath path, MVersion version, 
-            IProgress<DownloadFileChangedEventArgs> progress)
+        public Task<DownloadFile[]?> CheckFilesTaskAsync(MinecraftPath path, MVersion version, 
+            IProgress<DownloadFileChangedEventArgs>? progress)
         {
             return Task.Run(() => checkIndexAndAsset(path, version, progress));
         }
 
-        private DownloadFile[] checkIndexAndAsset(MinecraftPath path, MVersion version,
-            IProgress<DownloadFileChangedEventArgs> progress)
+        private DownloadFile[]? checkIndexAndAsset(MinecraftPath path, MVersion version,
+            IProgress<DownloadFileChangedEventArgs>? progress)
         {
             checkIndex(path, version);
             return CheckAssetFiles(path, version, progress);
@@ -48,6 +49,9 @@ namespace CmlLib.Core.Files
 
         private void checkIndex(MinecraftPath path, MVersion version)
         {
+            if (string.IsNullOrEmpty(version.AssetId))
+                return;
+
             string index = path.GetIndexFilePath(version.AssetId);
 
             if (!string.IsNullOrEmpty(version.AssetUrl))
@@ -65,22 +69,25 @@ namespace CmlLib.Core.Files
         }
 
         [MethodTimer.Time]
-        public JObject ReadIndex(MinecraftPath path, MVersion version)
+        public JObject? ReadIndex(MinecraftPath path, MVersion version)
         {
-            string indexpath = path.GetIndexFilePath(version.AssetId);
-            if (!File.Exists(indexpath)) return null;
+            if (string.IsNullOrEmpty(version.AssetId))
+                return null;
+            
+            string indexPath = path.GetIndexFilePath(version.AssetId);
+            if (!File.Exists(indexPath)) return null;
 
-            string json = File.ReadAllText(indexpath);
+            string json = File.ReadAllText(indexPath);
             var index = JObject.Parse(json); // 100ms
 
             return index;
         }
 
         [MethodTimer.Time]
-        public DownloadFile[] CheckAssetFiles(MinecraftPath path, MVersion version,
-            IProgress<DownloadFileChangedEventArgs> progress)
+        public DownloadFile[]? CheckAssetFiles(MinecraftPath path, MVersion version,
+            IProgress<DownloadFileChangedEventArgs>? progress)
         {
-            JObject index = ReadIndex(path, version);
+            JObject? index = ReadIndex(path, version);
             if (index == null)
                 return null;
 
@@ -98,65 +105,64 @@ namespace CmlLib.Core.Files
 
             foreach (var item in list)
             {
-                var f = checkAssetFile(item.Key, item.Value, path, version, isVirtual, mapResource);
+                if (item.Value != null)
+                {
+                    var f = checkAssetFile(item.Key, item.Value, path, version, isVirtual, mapResource);
 
-                if (f != null)
-                    downloadRequiredFiles.Add(f);
+                    if (f != null)
+                        downloadRequiredFiles.Add(f);
+                }
 
                 progressed++;
                 
                 if (progressed % 50 == 0) // prevent ui freezing
                     progress?.Report(
-                        new DownloadFileChangedEventArgs(MFile.Resource, "", total, progressed));
+                        new DownloadFileChangedEventArgs(MFile.Resource, this, "", total, progressed));
             }
 
             return downloadRequiredFiles.Distinct().ToArray(); // 10ms
         }
 
-        private DownloadFile checkAssetFile(string key, JToken job, MinecraftPath path, MVersion version, bool isVirtual, bool mapResource)
+        private DownloadFile? checkAssetFile(string key, JToken job, MinecraftPath path, MVersion version, 
+            bool isVirtual, bool mapResource)
         {
+            if (string.IsNullOrEmpty(version.AssetId))
+                return null;
+            
             // download hash resource
-            string hash = job["hash"]?.ToString();
+            string? hash = job["hash"]?.ToString();
             if (hash == null)
                 return null;
 
-            string hashName = hash.Substring(0, 2) + "/" + hash;
-            string hashPath = Path.Combine(path.GetAssetObjectPath(version.AssetId), hashName);
+            var hashName = hash.Substring(0, 2) + "/" + hash;
+            var hashPath = Path.Combine(path.GetAssetObjectPath(version.AssetId), hashName);
 
-            string sizestr = job["size"]?.ToString();
-            long.TryParse(sizestr, out long size);
+            long size = 0;
+            string? sizeStr = job["size"]?.ToString();
+            if (!string.IsNullOrEmpty(sizeStr))
+                long.TryParse(sizeStr, out size);
 
             var afterDownload = new List<Func<Task>>(1);
 
             if (isVirtual)
             {
-                afterDownload.Add(async () =>
-                {
-                    string resPath = Path.Combine(path.GetAssetLegacyPath(version.AssetId), key);
-                    if (!await IOUtil.CheckFileValidationAsync(resPath, hash, CheckHash).ConfigureAwait(false))
-                        await safeCopy(hashPath, resPath).ConfigureAwait(false);
-                });
+                var resPath = Path.Combine(path.GetAssetLegacyPath(version.AssetId), key);
+                afterDownload.Add(() => assetCopy(hashPath, resPath));
             }
 
             if (mapResource)
             {
-                afterDownload.Add(async () =>
-                {
-                    string resPath = Path.Combine(path.Resource, key);
-                    if (!await IOUtil.CheckFileValidationAsync(resPath, hash, CheckHash).ConfigureAwait(false))
-                        await safeCopy(hashPath, resPath).ConfigureAwait(false);
-                });
+                var desPath = Path.Combine(path.Resource, key);
+                afterDownload.Add(() => assetCopy(hashPath, desPath));
             }
 
             if (!IOUtil.CheckFileValidation(hashPath, hash, CheckHash))
             {
                 string hashUrl = AssetServer + hashName;
-                return new DownloadFile
+                return new DownloadFile(hashPath, hashUrl)
                 {
                     Type = MFile.Resource,
                     Name = key,
-                    Path = hashPath,
-                    Url = hashUrl,
                     Size = size,
                     AfterDownload = afterDownload.ToArray()
                 };
@@ -172,31 +178,32 @@ namespace CmlLib.Core.Files
             }
         }
 
-        private bool checkJsonTrue(JToken j)
-        {
-            string str = j?.ToString().ToLowerInvariant();
-            if (str != null && str == "true")
-                return true;
-            else
-                return false;
-        }
-
-        private async Task safeCopy(string org, string des)
+        private async Task assetCopy(string org, string des)
         {
             try
             {
-                var directoryName = Path.GetDirectoryName(des);
-                if (string.IsNullOrEmpty(directoryName))
-                    return;
+                var orgFile = new FileInfo(org);
+                var desFile = new FileInfo(des);
 
-                Directory.CreateDirectory(directoryName);
-                await IOUtil.CopyFileAsync(org, des)
-                    .ConfigureAwait(false);
+                if (!desFile.Exists || orgFile.Length != desFile.Length)
+                {
+                    var directoryName = Path.GetDirectoryName(des);
+                    if (!string.IsNullOrEmpty(directoryName))
+                        Directory.CreateDirectory(directoryName);
+
+                    await IOUtil.CopyFileAsync(org, des);
+                }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.Print(ex.ToString());
+                Debug.WriteLine(ex);
             }
+        }
+
+        private bool checkJsonTrue(JToken? j)
+        {
+            string? str = j?.ToString().ToLowerInvariant();
+            return str is "true";
         }
     }
 }

@@ -2,52 +2,59 @@
 
 ## Minecraft Launcher Library
 
-<img src='https://raw.githubusercontent.com/CmlLib/CmlLib.Core/master/logo.png' width=150>
+<img src='https://raw.githubusercontent.com/CmlLib/CmlLib.Core/master/icon.png' width=128>
 
-This library is minecraft launcher library for .NET 5.0 / .NET Core 3.1 / .NET Framework 4.6.2  
-Support all version, with Forge
+[![Nuget Badge](https://img.shields.io/nuget/v/CmlLib.Core)](https://www.nuget.org/packages/CmlLib.Core)
+[![GitHub license](https://img.shields.io/github/license/Naereen/StrapDown.js.svg)](https://github.com/CmlLib/CmlLib.Core/blob/master/LICENSE)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/3f55a130ec3f4bccb55e7def97cfa2ce)](https://www.codacy.com/gh/CmlLib/CmlLib.Core/dashboard?utm_source=github.com\&utm_medium=referral\&utm_content=CmlLib/CmlLib.Core\&utm_campaign=Badge_Grade)
 
-[한국어 README](https://github.com/AlphaBs/CmlLib.Core/blob/master/docs/README-kr.md)  
-한국어 문서는 최신 버전이 아닙니다. 빠른 시일 내에 업데이트하겠습니다.  
-궁금하신게 있다면 아래 디스코드 서버 접속해서 한국어 문의하기 채널에서 물어봐주세요.  
+[![Discord](https://img.shields.io/discord/795952027443527690?label=discord\&logo=discord\&style=for-the-badge)](https://discord.gg/cDW2pvwHSc)
 
-### Contact
+CmlLib.Core is a Minecraft launcher library for .NET\
+It supports all versions, including Forge
 
-![Discord](https://img.shields.io/discord/795952027443527690?label=discord&logo=discord&style=for-the-badge)  
+[한국어 README](https://github.com/AlphaBs/CmlLib.Core/blob/master/docs/README-kr.md)
 
+## Features
 
-## Version
+* Asynchronous APIs
+* Mojang Authentication
+* Microsoft Xbox Live Login
+* Download the game files from the Mojang file server
+* Launch any version (tested up to 1.17.1)
+* Launch Forge, Optifine, FabricMC, LiteLoader or any other custom version
+* Install Java runtime
+* Install Forge, LiteLoader, FabricMC
+* Launch with options (direct server connecting, screen resolution)
+* Cross-platform (Windows, Linux, macOS)
 
-Current version: 3.2.0-pre1
+[Go to the wiki for all features](https://github.com/CmlLib/CmlLib.Core/wiki)
 
-## Functions
+## Install
 
--   [x] Asynchronous APIs
--   [x] Online or Offline login
--   [x] Download the game files from the Mojang file server
--   [x] Launch any version (tested up to 1.16.5)
--   [x] Launch Forge, Optifine, FabricMC, LiteLoader or any other custom version
--   [x] Download the Minecraft java runtime from the Mojang file server
--   [x] Launch with options (direct server connecting, screen resolution)
--   [x] Supports cross-platform (windows, ubuntu, mac, only on .NET Core)
--   [x] Microsoft Xbox Live Login
+Install the [CmlLib.Core Nuget package](https://www.nuget.org/packages/CmlLib.Core)
 
-## How to Install
-
-Install the 'CmlLib.Core' Nuget package or download the dll files in [Releases](https://github.com/AlphaBs/CmlLib.Core/releases) and add references to them in your project.
+or download the DLL files in [Releases](https://github.com/AlphaBs/CmlLib.Core/releases) and add references to them in your project.
 
 Write this at the top of your source code:
+
 ```csharp
 using CmlLib.Core;
 using CmlLib.Core.Auth;
 ```
-## How to Use
 
-Official documentation: [wiki](https://github.com/AlphaBs/CmlLib.Core/wiki)
+## Documentation
 
-**[Sample Code](https://github.com/AlphaBs/CmlLib.Core/wiki/Sample-Code)**
+There are many features for custom launchers. Read the wiki to see all of the features.\
+**Official documentation: [wiki](https://github.com/CmlLib/CmlLib.Core/wiki)**
 
-**Login**
+## Quick start
+
+### Microsoft Xbox Login
+
+[Wiki](https://github.com/CmlLib/CmlLib.Core/wiki/Microsoft-Xbox-Live-Login)
+
+### Mojang Login
 
 [Login Process](https://github.com/AlphaBs/CmlLib.Core/wiki/Login-and-Sessions)
 
@@ -62,18 +69,22 @@ if (!response.IsSuccess) // failed to automatically log in
     response = login.Authenticate(email, pw);
 
     if (!response.IsSuccess)
-         throw new Exception(session.Result.ToString()) // failed to log in
+         throw new Exception(response.Result.ToString()); // failed to log in
 }
 
 // This session variable is the result of logging in and is used in MLaunchOption, in the Launch part below.
 var session = response.Session;
 ```
-**Offline Login**
+
+### Offline Login
+
 ```csharp
 // This session variable is the result of logging in and is used in MLaunchOption, in the Launch part below.
 var session = MSession.GetOfflineSession("USERNAME");
 ```
-**Launch**
+
+### Launch
+
 ```csharp
 // increase connection limit to fast download
 System.Net.ServicePointManager.DefaultConnectionLimit = 256;
@@ -82,6 +93,8 @@ System.Net.ServicePointManager.DefaultConnectionLimit = 256;
 var path = new MinecraftPath(); // use default directory
 
 var launcher = new CMLauncher(path);
+
+// show launch progress to console
 launcher.FileChanged += (e) =>
 {
     Console.WriteLine("[{0}] {1} - {2}/{3}", e.FileKind.ToString(), e.FileName, e.ProgressedFileCount, e.TotalFileCount);
@@ -117,10 +130,7 @@ var process = await launcher.CreateProcessAsync("1.15.2", launchOption); // vani
 
 process.Start();
 ```
-### More information
 
-Go to [wiki](https://github.com/AlphaBs/CmlLib.Core/wiki)
+## Example
 
-### What is different between CmlLib.Core and [CmlLib](https://github.com/AlphaBs/MinecraftLauncherLibrary)?
-
-CmlLib.Core is developed using .NET Core and supports cross platform, but CmlLib doesn't support it, and is deprecated.
+[Sample Code](https://github.com/AlphaBs/CmlLib.Core/wiki/Sample-Code)

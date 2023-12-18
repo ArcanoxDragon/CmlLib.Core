@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using CmlLib.Utils;
 
 namespace CmlLib.Core
 {
@@ -75,6 +76,9 @@ namespace CmlLib.Core
         public virtual string GetAssetLegacyPath(string assetId)
             => NormalizePath($"{Assets}/virtual/legacy");
 
+        public virtual string GetLogConfigFilePath(string configId)
+            => NormalizePath($"{Assets}/log_configs/{configId}" + (!configId.EndsWith(".xml") ? ".xml" : ""));
+
         public virtual string GetVersionJarPath(string id)
             => NormalizePath($"{Versions}/{id}/{id}.jar");
 
@@ -100,9 +104,7 @@ namespace CmlLib.Core
 
         protected static string NormalizePath(string path)
         {
-            return Path.GetFullPath(path)
-                .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar)
-                .TrimEnd(Path.DirectorySeparatorChar);
+            return IOUtil.NormalizePath(path);
         }
     }
 }

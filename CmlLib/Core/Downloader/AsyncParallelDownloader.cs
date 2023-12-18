@@ -23,8 +23,8 @@ namespace CmlLib.Core.Downloader
 
         private bool isRunning;
 
-        private IProgress<FileProgressChangedEventArgs> pChangeProgress;
-        private IProgress<DownloadFileChangedEventArgs> pChangeFile;
+        private IProgress<FileProgressChangedEventArgs>? pChangeProgress;
+        private IProgress<DownloadFileChangedEventArgs>? pChangeFile;
 
         public AsyncParallelDownloader() : this(10)
         {
@@ -37,9 +37,12 @@ namespace CmlLib.Core.Downloader
         }
 
         public async Task DownloadFiles(DownloadFile[] files, 
-            IProgress<DownloadFileChangedEventArgs> fileProgress,
-            IProgress<ProgressChangedEventArgs> downloadProgress)
+            IProgress<DownloadFileChangedEventArgs>? fileProgress,
+            IProgress<ProgressChangedEventArgs>? downloadProgress)
         {
+            if (files.Length == 0)
+                return;
+            
             if (isRunning)
                 throw new InvalidOperationException("already downloading");
 
@@ -60,6 +63,8 @@ namespace CmlLib.Core.Downloader
                     totalBytes += item.Size;
             }
 
+            fileProgress?.Report(
+                new DownloadFileChangedEventArgs(files[0].Type, this, null, files.Length, 0));
             await ForEachAsyncSemaphore(files, MaxThread, doDownload).ConfigureAwait(false);
             
             isRunning = false;
@@ -69,25 +74,26 @@ namespace CmlLib.Core.Downloader
     int degreeOfParallelism, Func<T, Task> body)
         {
             List<Task> tasks = new List<Task>();
-            using (SemaphoreSlim throttler = new SemaphoreSlim(degreeOfParallelism))
+            using SemaphoreSlim throttler = new SemaphoreSlim(degreeOfParallelism);
+            foreach (var element in source)
             {
-                foreach (var element in source)
+                await throttler.WaitAsync().ConfigureAwait(false);
+
+                async Task work(T item)
                 {
-                    await throttler.WaitAsync().ConfigureAwait(false);
-                    tasks.Add(Task.Run(async () =>
+                    try
                     {
-                        try
-                        {
-                            await body(element).ConfigureAwait(false);
-                        }
-                        finally
-                        {
-                            throttler.Release();
-                        }
-                    }));
+                        await body(item).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        throttler.Release();
+                    }
                 }
-                await Task.WhenAll(tasks).ConfigureAwait(false);
+                
+                tasks.Add(work(element));
             }
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
 
         private async Task doDownload(DownloadFile file)
@@ -116,14 +122,13 @@ namespace CmlLib.Core.Downloader
                 {
                     foreach (var item in file.AfterDownload)
                     {
-                        if (item != null)
-                            await item.Invoke().ConfigureAwait(false);
+                        await item.Invoke().ConfigureAwait(false);
                     }
                 }
 
                 Interlocked.Increment(ref progressedFiles);
                 pChangeFile?.Report(
-                    new DownloadFileChangedEventArgs(file.Type, file.Name, totalFiles, progressedFiles));
+                    new DownloadFileChangedEventArgs(file.Type, this, file.Name, totalFiles, progressedFiles));
             }
             catch (Exception ex)
             {
@@ -137,7 +142,7 @@ namespace CmlLib.Core.Downloader
             }
         }
 
-        private void Downloader_FileDownloadProgressChanged(object sender, FileDownloadProgress e)
+        private void Downloader_FileDownloadProgressChanged(object? sender, DownloadFileProgress e)
         {
             lock (progressEventLock)
             {

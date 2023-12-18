@@ -25,16 +25,16 @@ namespace CmlLib.Core.Files
         }
         public bool CheckHash { get; set; } = true;
 
-        public DownloadFile[] CheckFiles(MinecraftPath path, MVersion version,
-            IProgress<DownloadFileChangedEventArgs> progress)
+        public DownloadFile[]? CheckFiles(MinecraftPath path, MVersion version,
+            IProgress<DownloadFileChangedEventArgs>? progress)
         {
             if (version == null)
                 throw new ArgumentNullException(nameof(version));
             return CheckFiles(path, version.Libraries, progress);
         }
 
-        public Task<DownloadFile[]> CheckFilesTaskAsync(MinecraftPath path, MVersion version,
-            IProgress<DownloadFileChangedEventArgs> progress)
+        public Task<DownloadFile[]?> CheckFilesTaskAsync(MinecraftPath path, MVersion version,
+            IProgress<DownloadFileChangedEventArgs>? progress)
         {
             if (version == null)
                 throw new ArgumentNullException(nameof(version));
@@ -42,18 +42,21 @@ namespace CmlLib.Core.Files
             return Task.Run(() => checkLibraries(path, version.Libraries, progress));
         }
 
-        public DownloadFile[] CheckFiles(MinecraftPath path, MLibrary[] libs,
-            IProgress<DownloadFileChangedEventArgs> progress)
+        public DownloadFile[]? CheckFiles(MinecraftPath path, MLibrary[]? libs,
+            IProgress<DownloadFileChangedEventArgs>? progress)
         {
             return checkLibraries(path, libs, progress);
         }
         
         [MethodTimer.Time]
-        private DownloadFile[] checkLibraries(MinecraftPath path, MLibrary[] libs,
-            IProgress<DownloadFileChangedEventArgs> progress)
+        private DownloadFile[]? checkLibraries(MinecraftPath path, MLibrary[]? libs,
+            IProgress<DownloadFileChangedEventArgs>? progress)
         {
             if (libs == null)
                 throw new ArgumentNullException(nameof(libs));
+
+            if (libs.Length == 0)
+                return null;
             
             int progressed = 0;
             var files = new List<DownloadFile>(libs.Length);
@@ -63,33 +66,37 @@ namespace CmlLib.Core.Files
                 
                 if (downloadRequire)
                 {
-                    files.Add(new DownloadFile
+                    string libPath = Path.Combine(path.Library, library.Path!); // cannot be null
+                    string? libUrl = createDownloadUrl(library);
+
+                    if (!string.IsNullOrEmpty(libUrl))
                     {
-                        Type = MFile.Library,
-                        Name = library.Name,
-                        Path = Path.Combine(path.Library, library.Path),
-                        Size = library.Size,
-                        Url = createDownloadUrl(library)
-                    });
+                        files.Add(new DownloadFile(libPath, libUrl)
+                        {
+                            Type = MFile.Library,
+                            Name = library.Name,
+                            Size = library.Size
+                        });
+                    }
                 }
 
                 progressed++;
                 progress?.Report(new DownloadFileChangedEventArgs(
-                    MFile.Library, library.Name, libs.Length, progressed));
+                    MFile.Library, this, library.Name, libs.Length, progressed));
             }
             return files.Distinct().ToArray();
         }
 
-        private string createDownloadUrl(MLibrary lib)
+        private string? createDownloadUrl(MLibrary lib)
         {
-            string url = lib.Url;
+            string? url = lib.Url;
 
             if (url == null)
                 url = LibraryServer + lib.Path;
             else if (url == "")
                 url = null;
             else if (url.Split('/').Last() == "")
-                url += lib.Path.Replace("\\", "/");
+                url += lib.Path?.Replace("\\", "/");
 
             return url;
         }
@@ -99,14 +106,6 @@ namespace CmlLib.Core.Files
             return lib.IsRequire
                    && !string.IsNullOrEmpty(lib.Path)
                    && !IOUtil.CheckFileValidation(Path.Combine(path.Library, lib.Path), lib.Hash, CheckHash);
-        }
-        
-        private async Task<bool> checkDownloadRequireAsync(MinecraftPath path, MLibrary lib)
-        {
-            return lib.IsRequire
-                && !string.IsNullOrEmpty(lib.Path)
-                && !await IOUtil.CheckFileValidationAsync(Path.Combine(path.Library, lib.Path), lib.Hash, CheckHash)
-                    .ConfigureAwait(false);
         }
     }
 }
